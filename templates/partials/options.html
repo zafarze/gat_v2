@@ -1,0 +1,12 @@
+{# D:\New_GAT\templates\partials\_options.html #}
+{# УНИВЕРСАЛЬНЫЙ ШАБЛОН ДЛЯ <select> #}
+
+<option value="">{{ placeholder|default:"Выберите..." }}</option>
+{% for item in items %}
+    {# Проверяем, нужно ли выводить название школы (для классов, предметов и т.д.) #}
+    {% if item.school %}
+        <option value="{{ item.id }}">{{ item.school.name }} - {{ item.name }}</option>
+    {% else %}
+        <option value="{{ item.id }}">{{ item.name }}</option>
+    {% endif %}
+{% endfor %}

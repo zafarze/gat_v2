@@ -1,0 +1,14 @@
+{% load widget_tweaks %}
+
+{# Этот блок будет заменять содержимое #class-subject-container #}
+<div class="mt-6">
+    <label class="form-label" for="{{ form.school_class.id_for_label }}">{{ form.school_class.label }}</label>
+    {% render_field form.school_class class+="form-select" %}
+    {% for error in form.school_class.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+</div>
+
+<div class="mt-6">
+    <label class="form-label" for="{{ form.subject.id_for_label }}">{{ form.subject.label }}</label>
+    {% render_field form.subject class+="form-select" %}
+    {% for error in form.subject.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+</div>

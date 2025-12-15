@@ -1,0 +1,17 @@
+{# D:\New_GAT\templates\question_counts\partials\school_options.html #}
+
+{% for school in schools %}
+    <label class="chip">
+        <input type="checkbox" 
+               name="schools" 
+               value="{{ school.id }}"
+               hx-get="{% url 'core:api_load_classes_and_subjects_for_schools' %}"
+               hx-target="#classes-subjects-container"
+               hx-include="[name='schools']:checked">
+        <span>{{ school.name }}</span>
+    </label>
+{% empty %}
+    <div class="text-center text-gray-500 p-4">
+        Нет доступных школ.
+    </div>
+{% endfor %}

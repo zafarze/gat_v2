@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+    <a href="{% url 'core:student_class_list' school_class.school.id %}" class="back-link mb-4">
+        &larr; Назад к классам в "{{ school_class.school.name }}"
+    </a>
+
+    <div class="page-header">
+        <h1 class="page-title">{{ title }}</h1>
+        <a href="{% url 'core:student_add' %}?class_id={{ school_class.id }}" class="modern-btn primary">
+            + Добавить ученика
+        </a>
+    </div>
+
+    <div class="data-card overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="table-header">№</th>
+                    <th class="table-header">ФИО (рус)</th>
+                    <th class="table-header">Student ID</th>
+                    <th class="table-header text-center">Действия</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                
+                {# ✨✨✨ ГЛАВНОЕ ИСПРАВЛЕНИЕ: БЫЛО 'items', СТАЛО 'students' ✨✨✨ #}
+                {% for student in students %}
+                <tr class="hover:bg-gray-50">
+                    <td class="table-cell">{{ forloop.counter }}</td>
+                    <td class="table-cell font-medium">{{ student.full_name_ru }}</td>
+                    <td class="table-cell text-gray-500">{{ student.student_id }}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-center">
+                        <a href="{% url 'core:student_progress' student.pk %}" class="text-indigo-600 hover:text-indigo-900">
+                            Аналитика
+                        </a>
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center py-10 text-gray-500">
+                        В этом классе пока нет учеников.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+{% endblock %}

@@ -1,0 +1,27 @@
+{
+  "name": "new_gat",
+  "version": "1.0.0",
+  "description": "A description of your project.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tailwindcss -i ./static/css/input.css -o ./static/css/style.css --minify",
+    "watch": "tailwindcss -i ./static/css/input.css -o ./static/css/style.css --watch"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zafarze/gat.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zafarze/gat/issues"
+  },
+  "homepage": "https://github.com/zafarze/gat#readme",
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.10",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.18"
+  }
+}

@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div
+    x-data="{
+        showModal: false,
+        showDeleteModal: false,
+        deleteUrl: '',
+        deleteItemName: ''
+    }"
+    @keydown.escape.window="showModal = false; showDeleteModal = false"
+    @close-modal.window="showModal = false"
+    @close-delete-modal.window="showDeleteModal = false"
+>
+    <div class="data-card p-6">
+        {# --- ЗАГОЛОВОК СТРАНИЦЫ И КНОПКА "ДОБАВИТЬ" --- #}
+        <div class="page-header mb-6">
+            <div>
+                <a href="{% url 'core:management' %}" class="back-link">&larr; Назад в Управление</a>
+                <h1 class="page-title mt-1">{{ title }}</h1>
+            </div>
+
+            {# ✨ ИЗМЕНЕНИЕ: Оборачиваем кнопку в условие ✨ #}
+            {% if user.is_superuser %}
+            <button @click="showModal = true"
+                    hx-get="{% url add_url %}"
+                    hx-target="#modal-content"
+                    class="modern-btn primary flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+                </svg>
+                <span>Добавить</span>
+            </button>
+            {% endif %}
+            {# ✨ КОНЕЦ ИЗМЕНЕНИЯ ✨ #}
+
+        </div>
+
+        {# --- ТАБЛИЦА ДАННЫХ --- #}
+        <div class="border border-gray-200 rounded-lg overflow-x-auto">
+            <table class="min-w-full">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="table-header w-16">№</th>
+                        <th class="table-header">Название</th>
+                        <th class="table-header">Дата начала</th>
+                        <th class="table-header">Дата окончания</th>
+                        {# ✨ ИЗМЕНЕНИЕ: Скрываем заголовок "Действия", если не суперпользователь ✨ #}
+                        {% if user.is_superuser %}
+                        <th class="table-header text-right w-48">Действия</th>
+                        {% endif %}
+                    </tr>
+                </thead>
+                {# Сюда HTMX будет вставлять обновленные строки таблицы из _table.html #}
+                {% include "years/_table.html" %}
+            </table>
+        </div>
+    </div>
+
+    {# --- МОДАЛЬНЫЕ ОКНА (УПРАВЛЯЮТСЯ ALPINE.JS) --- #}
+
+    {# Модальное окно для Cоздания/Редактирования #}
+    <div x-show="showModal" x-transition.opacity.duration.300 class="fixed inset-0 z-30 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4" style="display: none;">
+        <div @click.away="showModal = false" id="modal-content" class="w-full max-w-lg">
+            {# Сюда HTMX будет загружать форму из form_modal.html #}
+        </div>
+    </div>
+
+    {# Модальное окно для Удаления #}
+    <div x-show="showDeleteModal" x-transition.opacity.duration.300 class="fixed inset-0 z-30 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4" style="display: none;">
+        <div @click.away="showDeleteModal = false" class="bg-white rounded-xl shadow-xl p-8 max-w-md w-full text-center">
+            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mt-5">Подтвердите удаление</h3>
+            <div class="mt-2 text-gray-600">
+                <p>Вы уверены, что хотите удалить</p>
+                <p class="font-bold" x-text="deleteItemName"></p>
+                <p class="text-sm text-gray-500 mt-2">Это действие нельзя будет отменить.</p>
+            </div>
+            <div class="mt-8 flex justify-center items-center gap-4">
+                <form id="delete-form">{% csrf_token %}</form>
+                <button type="button" @click="showDeleteModal = false" class="modern-btn secondary">Отмена</button>
+                <button type="button"
+                        @click="htmx.ajax('POST', deleteUrl, { target: '#table-body', swap: 'outerHTML', values: htmx.values(htmx.find('#delete-form')) });"
+                        class="modern-btn danger">
+                    Да, удалить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{# extra_js остается без изменений #}
+{% block extra_js %}
+<link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+<script>
+    document.body.addEventListener('htmx:beforeSwap', function(evt) {
+        if (evt.detail.xhr.status >= 200 && evt.detail.xhr.status < 300) {
+            const trigger = evt.detail.xhr.getResponseHeader('HX-Trigger');
+            if (trigger) {
+                try {
+                    const triggerData = JSON.parse(trigger);
+                    if (triggerData['show-message']) {
+                        const message = triggerData['show-message'];
+                        Toastify({
+                            text: message.text || "Произошла ошибка.", duration: 4000, newWindow: true,
+                            close: true, gravity: "top", position: "right", stopOnFocus: true,
+                            style: { background: message.type === 'error' ? "linear-gradient(to right, #ef4444, #b91c1c)" : "linear-gradient(to right, #22c55e, #15803d)", },
+                        }).showToast();
+                    }
+                } catch (e) { console.error("Could not parse HX-Trigger header:", e); }
+            }
+        }
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,7 @@
+/* static/css/custom.css */
+.chart-datalabel {
+    font-size: 16px;
+    font-weight: 800;
+    color: #e11d48; /* Ярко-розовый/красный цвет */
+    text-shadow: 1px 1px 2px white;
+}

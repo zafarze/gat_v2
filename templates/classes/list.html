@@ -1,0 +1,154 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div
+    x-data="{
+        showModal: false,          {# Состояние видимости модального окна добавления/редактирования #}
+        showDeleteModal: false,    {# Состояние видимости модального окна удаления #}
+        deleteUrl: '',             {# URL для отправки запроса на удаление #}
+        deleteItemName: ''         {# Имя элемента для отображения в подтверждении удаления #}
+    }"
+    @keydown.escape.window="showModal = false; showDeleteModal = false" {# Закрытие модалок по Escape #}
+    @close-modal.window="showModal = false"        {# Пользовательское событие для закрытия основной модалки #}
+    @close-delete-modal.window="showDeleteModal = false" {# Пользовательское событие для закрытия модалки удаления #}
+>
+    {# Основная карточка страницы #}
+    <div class="data-card p-6">
+        {# --- ЗАГОЛОВОК СТРАНИЦЫ --- #}
+        <div class="page-header mb-6">
+            <div>
+                {# Ссылка для возврата на страницу управления #}
+                <a href="{% url 'core:management' %}" class="back-link">&larr; Назад в Управление</a>
+                {# Основной заголовок страницы #}
+                <h1 class="page-title mt-1">{{ title }}</h1>
+            </div>
+            {# Кнопка "Добавить класс" (общая) здесь больше не нужна, она будет у каждой школы #}
+        </div>
+
+        {# --- СПИСОК ШКОЛ С КЛАССАМИ --- #}
+        <div class="space-y-6"> {# Добавляет отступ между карточками школ #}
+            {% for school in schools %}
+                {# --- Начало карточки для одной школы --- #}
+                {# x-data="{ expanded: true }" - инициализирует состояние Alpine.js для этой карточки, по умолчанию развернуто #}
+                <div x-data="{ expanded: true }" class="border border-gray-200 rounded-lg overflow-hidden transition-all duration-300">
+
+                    {# --- Заголовок карточки школы с кнопками --- #}
+                    <div class="bg-gray-50 p-4 flex justify-between items-center border-b border-gray-200 cursor-pointer" @click="expanded = !expanded"> {# Добавлен @click для сворачивания/разворачивания по клику на весь заголовок #}
+                        {# Название школы #}
+                        <h2 class="text-lg font-semibold text-gray-800">{{ school.name }}</h2>
+                        {# Контейнер для кнопок справа #}
+                        <div class="flex items-center gap-2">
+                            {# Кнопка "Добавить класс" для ЭТОЙ школы #}
+                            {# @click.stop предотвращает сворачивание карточки при клике на кнопку #}
+                            <button @click.stop="showModal = true"
+                                    hx-get="{% url add_url %}?school={{ school.pk }}" {# Передаем ID школы для формы #}
+                                    hx-target="#modal-content" {# Загружаем форму в модальное окно #}
+                                    class="modern-btn primary small flex items-center gap-1">
+                                {# Иконка плюса #}
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                                <span>Добавить класс</span>
+                            </button>
+
+                            {# Новая кнопка "Свернуть/Развернуть" #}
+                            {# @click.stop предотвращает сворачивание/разворачивание карточки при клике на сам заголовок #}
+                            <button @click.stop="expanded = !expanded" class="modern-btn secondary small p-2" :aria-expanded="expanded.toString()" aria-controls="class-list-{{ school.pk }}">
+                                <span class="sr-only" x-text="expanded ? 'Свернуть классы' : 'Развернуть классы'"></span> {# Текст для скринридеров #}
+                                {# Иконка "шеврон вверх" (свернуть) - показывается, когда expanded = true #}
+                                <svg x-show="expanded" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M5 15l7-7 7 7" />
+                                </svg>
+                                {# Иконка "шеврон вниз" (развернуть) - показывается, когда expanded = false #}
+                                {# style="display: none;" нужен для предотвращения "мелькания" иконки при загрузке #}
+                                <svg x-show="!expanded" xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" style="display: none;">
+                                  <path stroke-linecap="round" stroke-linejoin="round" d="M19 9l-7 7-7-7" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    {# --- Сворачиваемый блок со списком классов --- #}
+                    {# x-show="expanded" - показывает/скрывает блок #}
+                    {# x-transition - добавляет плавную анимацию появления/скрытия #}
+                    {# id="class-list-{{ school.pk }}" - для aria-controls кнопки #}
+                    <div x-show="expanded" x-transition id="class-list-{{ school.pk }}" class="overflow-x-auto">
+                        {# Подключаем частичный шаблон для таблицы классов этой школы #}
+                        {# Передаем в него переменные school, add_url и т.д. #}
+                        {% include "classes/_school_card.html" with school=school add_url=add_url edit_url=edit_url delete_url=delete_url user=user %}
+                    </div>
+                </div>
+                {# --- Конец карточки для одной школы --- #}
+
+            {% empty %}
+                {# Сообщение, если школ нет #}
+                <p class="text-center text-gray-500 py-10">Школы не найдены.</p>
+            {% endfor %}
+        </div>
+    </div>
+
+    {# --- МОДАЛЬНЫЕ ОКНА --- #}
+    {# Модальное окно для добавления/редактирования #}
+    <div x-show="showModal"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-30 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4"
+         style="display: none;" {# Изначально скрыто #}
+         aria-modal="true" role="dialog">
+        {# Контейнер модального окна, @click.away закрывает его при клике вне окна #}
+        <div @click.away="showModal = false" id="modal-content" class="w-full max-w-lg">
+            {# Сюда HTMX будет загружать форму из form_modal.html #}
+            {# Можно добавить спиннер загрузки #}
+            <div class="bg-white p-8 rounded-xl text-center">Загрузка...</div>
+        </div>
+    </div>
+
+    {# Модальное окно для подтверждения удаления #}
+    <div x-show="showDeleteModal"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed inset-0 z-30 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4"
+         style="display: none;" {# Изначально скрыто #}
+         aria-modal="true" role="dialog">
+        {# Контейнер модального окна #}
+        <div @click.away="showDeleteModal = false" class="bg-white rounded-xl shadow-xl p-8 max-w-md w-full text-center">
+            {# Иконка предупреждения #}
+            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+            </div>
+            {# Заголовок подтверждения #}
+            <h3 class="text-xl font-bold text-gray-900 mt-5">Подтвердите удаление</h3>
+            {# Текст подтверждения с именем элемента #}
+            <div class="mt-2 text-gray-600">
+                <p>Вы уверены, что хотите удалить</p>
+                <p class="font-bold" x-text="deleteItemName"></p> {# Отображаем имя элемента из Alpine.js #}
+                <p class="text-sm text-gray-500 mt-2">Это действие нельзя будет отменить.</p>
+            </div>
+            {# Кнопки действий #}
+            <div class="mt-8 flex justify-center items-center gap-4">
+                {# Скрытая форма для передачи CSRF токена через HTMX #}
+                <form id="delete-form" style="display: none;">{% csrf_token %}</form>
+                {# Кнопка отмены #}
+                <button type="button" @click="showDeleteModal = false" class="modern-btn secondary">Отмена</button>
+                {# Кнопка подтверждения удаления, использующая HTMX #}
+                <button type="button"
+                        {# @click отправляет POST-запрос по URL из deleteUrl #}
+                        {# htmx.ajax позволяет сделать это программно #}
+                        {# target: '#table-body' - куда вставить ответ (нужно изменить на ID tbody нужной школы) #}
+                        {# swap: 'outerHTML' - как вставить ответ #}
+                        {# values: htmx.values(...) - передает CSRF токен из скрытой формы #}
+                        @click="htmx.ajax('POST', deleteUrl, { target: '#class-table-body-' + deleteUrl.split('/')[3], swap: 'outerHTML', values: htmx.values(htmx.find('#delete-form')) });"
+                        class="modern-btn danger">
+                    Да, удалить
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

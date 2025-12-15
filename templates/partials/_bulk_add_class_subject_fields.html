@@ -1,0 +1,13 @@
+{# D:\New_GAT\templates\partials\_bulk_add_class_subject_fields.html #}
+{# HTMX: Возвращает поля для выбора классов и предметов #}
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <div>
+        {# Используем универсальный компонент для отображения #}
+        {% include "partials/_form_checkboxes.html" with field=class_field %}
+    </div>
+    <div>
+        {# Используем универсальный компонент для отображения #}
+        {% include "partials/_form_checkboxes.html" with field=subject_field %}
+    </div>
+</div>

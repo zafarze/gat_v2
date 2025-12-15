@@ -1,0 +1,26 @@
+{% load widget_tweaks %}
+
+<div class="grid grid-cols-2 gap-6">
+    <div>
+        <label class="modern-label" for="{{ form.school_class.id_for_label }}">{{ form.school_class.label }}</label>
+        {% render_field form.school_class class+="modern-input" %}
+        {% for error in form.school_class.errors %}
+            <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+        {% endfor %}
+    </div>
+    <div>
+        <label class="modern-label" for="{{ form.subject.id_for_label }}">{{ form.subject.label }}</label>
+        {% render_field form.subject class+="modern-input" %}
+         {% for error in form.subject.errors %}
+            <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+        {% endfor %}
+    </div>
+</div>
+
+<div>
+    <label class="modern-label" for="{{ form.number_of_questions.id_for_label }}">{{ form.number_of_questions.label }}</label>
+    {% render_field form.number_of_questions class+="modern-input" %}
+     {% for error in form.number_of_questions.errors %}
+        <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+    {% endfor %}
+</div>

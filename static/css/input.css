@@ -1,0 +1,119 @@
+/* D:\New_GAT\static\css\input.css */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    /* Main color scheme and variables for the entire project */
+    :root {
+        --primary: #4f46e5;         /* Indigo 600 */
+        --primary-dark: #4338ca;    /* Indigo 700 */
+        --primary-light: #c7d2fe;   /* Indigo 200 */
+        --text-main: #1f2937;       /* Gray 800 */
+        --text-light: #6b7280;      /* Gray 500 */
+        --border-color: #e5e7eb;    /* Gray 200 */
+        --accent: #10b981;          /* Emerald 500 */
+    }
+}
+
+@layer components {
+    /* === GENERAL STYLES === */
+    body {
+        @apply bg-gray-100 font-sans text-[var(--text-main)] antialiased;
+    }
+
+    /* === CARDS & PANELS === */
+    .data-card {
+        @apply bg-white p-6 rounded-xl shadow-md;
+    }
+
+    /* === FORMS & INPUTS === */
+    .modern-label {
+        @apply block text-sm font-semibold text-[var(--text-light)] mb-2 tracking-wide;
+    }
+    .modern-input {
+        @apply block w-full px-4 py-2.5 bg-white border border-[var(--border-color)] rounded-lg shadow-sm
+               transition
+               focus:border-[var(--primary)] focus:ring-2 focus:ring-[var(--primary-light)];
+    }
+
+    /* === BUTTONS === */
+    .modern-btn {
+        @apply inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg font-semibold
+               transition-transform transform
+               focus:outline-none focus:ring-2 focus:ring-offset-2 active:scale-95;
+    }
+    .modern-btn.primary {
+        @apply bg-[var(--primary)] text-white shadow-sm hover:bg-[var(--primary-dark)] focus:ring-[var(--primary)];
+    }
+    .modern-btn.secondary {
+        @apply bg-gray-200 text-gray-800 hover:bg-gray-300 focus:ring-gray-400;
+    }
+    .modern-btn.danger {
+        @apply bg-red-600 text-white shadow-sm hover:bg-red-700 focus:ring-red-500;
+    }
+    .modern-btn.small {
+        @apply px-3 py-1 text-sm;
+    }
+
+    /* Colored Icon Buttons */
+    .icon-button {
+        @apply inline-flex p-2 rounded-full transition-all duration-200;
+    }
+    .icon-button:hover {
+        @apply scale-110 bg-gray-100;
+    }
+    .icon-button.blue { @apply text-blue-600; }
+    .icon-button.green { @apply text-green-600; }
+    .icon-button.yellow { @apply text-yellow-500; }
+    .icon-button.indigo { @apply text-indigo-600; }
+    .icon-button.red { @apply text-red-600; }
+
+
+    /* === PAGE COMPONENTS === */
+    .page-header {
+        @apply flex flex-col sm:flex-row justify-between sm:items-center mb-8 gap-4;
+    }
+    .page-title {
+        @apply text-3xl font-bold text-gray-900;
+    }
+    .back-link {
+         @apply text-[var(--primary)] hover:underline text-sm flex items-center gap-1 mb-2;
+    }
+
+    /* === TABLES === */
+    .table-header {
+        @apply px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider;
+    }
+    .table-cell {
+        @apply px-6 py-4 whitespace-nowrap text-sm;
+    }
+    .table-cell-compact {
+        @apply py-2 text-xs;
+    }
+
+
+    /* === STYLES FROM deep_analysis.css === */
+    .gradient-text {
+        background: linear-gradient(135deg, var(--primary), var(--accent));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+    .tabs {
+        @apply border-b border-gray-200 mb-8 flex gap-2;
+    }
+    .tab-button {
+        @apply px-6 py-3 border-b-2 border-transparent text-gray-500 font-semibold
+               hover:text-[var(--primary)] hover:border-[var(--primary-light)] transition-all;
+    }
+    .tab-button.active {
+        @apply text-[var(--primary)] border-[var(--primary)];
+    }
+    .tab-content {
+        display: none;
+    }
+    .tab-content.active {
+        display: block;
+    }
+}

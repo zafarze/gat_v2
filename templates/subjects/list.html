@@ -1,0 +1,81 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div
+    x-data="{
+        showModal: false,
+        showDeleteModal: false,
+        deleteUrl: '',
+        deleteItemName: ''
+    }"
+    @keydown.escape.window="showModal = false; showDeleteModal = false"
+    @close-modal.window="showModal = false"
+    @close-delete-modal.window="showDeleteModal = false"
+>
+    {# --- ЗАГОЛОВОК СТРАНИЦЫ --- #}
+    <div class="page-header">
+        <div>
+            <a href="{% url 'core:management' %}" class="back-link">&larr; Назад в Управление</a>
+            <h1 class="page-title mt-1">{{ title }}</h1>
+        </div>
+        {# ✨ ИЗМЕНЕНИЕ: Оборачиваем кнопку "Добавить" в условие ✨ #}
+        {% if user.is_superuser %}
+        <button hx-get="{% url add_url %}" hx-target="#modal-content" hx-swap="innerHTML"
+                @click="showModal = true" class="modern-btn primary">
+            + Добавить предмет
+        </button>
+        {% endif %}
+        {# ✨ КОНЕЦ ИЗМЕНЕНИЯ ✨ #}
+    </div>
+
+    {# --- КОНТЕЙНЕР ДЛЯ ТАБЛИЦЫ ПРЕДМЕТОВ --- #}
+    <div id="subject-list-container" class="data-card overflow-x-auto"
+         {# Загружаем список при загрузке страницы и при событии force-refresh #}
+         hx-get="{% url 'core:subject_list' %}" hx-trigger="load, force-refresh from:body" hx-swap="innerHTML">
+        {# Сразу включаем таблицу (она будет перезаписана HTMX при загрузке) #}
+        {% include 'subjects/_table.html' with items=items edit_url=edit_url delete_url=delete_url %}
+    </div>
+
+    {# --- Модальные окна (код без изменений) --- #}
+    <div x-show="showModal" x-transition.opacity.duration.300
+         class="fixed inset-0 z-30 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4"
+         style="display: none;">
+        <div @click.away="showModal = false" id="modal-content" class="w-full max-w-lg">
+            <div class="bg-white p-6 rounded-lg shadow-lg text-center">Загрузка формы...</div>
+        </div>
+    </div>
+    <div x-show="showDeleteModal" x-transition.opacity.duration.300
+         class="fixed inset-0 z-30 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4"
+         style="display: none;">
+        <div @click.away="showDeleteModal = false"
+             class="bg-white rounded-xl shadow-xl p-8 max-w-md w-full text-center">
+            <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:h-10 sm:w-10">
+                <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>
+            </div>
+            <h3 class="text-xl font-bold text-gray-900 mt-5">Подтвердите удаление</h3>
+            <div class="mt-2 text-gray-600">
+                <p>Вы уверены, что хотите удалить предмет</p>
+                <p class="font-bold" x-text="deleteItemName"></p>
+            </div>
+            <div class="mt-8 flex justify-center items-center gap-4">
+                <form id="delete-form-subjects">{% csrf_token %}</form>
+                <button type="button" @click="showDeleteModal = false" class="modern-btn secondary">Отмена</button>
+                <button type="button"
+                        @click="
+                            htmx.ajax('POST', deleteUrl, {
+                                target: '#subject-list-container',
+                                swap: 'innerHTML',
+                                values: htmx.values(htmx.find('#delete-form-subjects'))
+                            });
+                        "
+                        class="modern-btn danger">
+                    Да, удалить
+                </button>
+            </div>
+        </div>
+    </div>
+
+</div> {# Конец x-data контейнера #}
+{% endblock %}

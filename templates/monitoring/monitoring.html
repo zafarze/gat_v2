@@ -1,0 +1,240 @@
+{% extends "base.html" %}
+{% load static custom_filters %}
+
+{% block head %}
+<link rel="stylesheet" href="{% static 'css/deep_analysis.css' %}">
+<style>
+    /* ✨ 2. СТИЛИ ДЛЯ ЦВЕТНОЙ ТАБЛИЦЫ И КРАСИВЫХ КНОПОК */
+    .table-header {
+        @apply px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider;
+    }
+    .table-cell {
+        @apply px-4 py-4 whitespace-nowrap text-sm;
+    }
+    .btn-icon.excel { @apply bg-green-50 text-green-700 hover:bg-green-100; }
+    .btn-icon.pdf { @apply bg-red-50 text-red-700 hover:bg-red-100; }
+
+    @media print {
+        body { background-color: white !important; }
+        aside, header, .action-buttons, .no-print, form, .glass-card { display: none !important; }
+        main { padding: 0 !important; margin: 0 !important; }
+        #table-wrapper { overflow: visible !important; height: auto !important; max-height: none !important; box-shadow: none !important; border: none !important; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <div class="flex justify-between items-center">
+        <h1 id="monitoring-title" class="text-3xl font-bold text-gray-800">Мониторинг</h1>
+    </div>
+
+    <div class="glass-card p-6 rounded-lg mb-8 no-print">
+        <h2 id="monitoring-subtitle" class="text-2xl font-bold text-gray-800 mb-6">Фильтры</h2>
+        <form method="get" id="monitoring-form">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="filter-card" data-filter="quarters">
+                    <label id="label-quarter" class="font-bold text-gray-700 text-lg">{{ form.quarters.label }}</label>
+                    <div class="chip-container items-center">{% for choice in form.quarters %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
+                </div>
+                <div class="filter-card" data-filter="schools">
+                    <label id="label-schools" class="font-bold text-gray-700 text-lg">{{ form.schools.label }}</label>
+                    <div class="chip-container items-center">{% for choice in form.schools %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
+                </div>
+                <div class="filter-card" id="classes-filter-card" data-filter="school_classes">
+                    <label id="label-classes" class="font-bold text-gray-700 text-lg">{{ form.school_classes.label }}</label>
+                    <div id="classes-chip-container" class="chip-container items-center">
+                        {% if grouped_classes %}{% for group_name, classes_in_group in grouped_classes.items %}<div class="w-full"><p class="font-semibold text-gray-600 text-sm mt-2 mb-1">{{ group_name }}</p>{% for choice in classes_in_group %}<label class="chip"><input type="checkbox" name="school_classes" value="{{ choice.id }}" {% if choice.id|stringformat:"s" in selected_class_ids %}checked{% endif %}><span>{{ choice.name }}</span></label>{% endfor %}</div>{% endfor %}{% else %}<p class="text-sm text-gray-500">Сначала выберите школу.</p>{% endif %}
+                    </div>
+                </div>
+                <div class="filter-card" data-filter="test_numbers">
+                    <label id="label-tests" class="font-bold text-gray-700 text-lg">{{ form.test_numbers.label }}</label>
+                    <div class="chip-container items-center">{% for choice in form.test_numbers %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
+                </div>
+                <div class="filter-card" data-filter="days">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.days.label }}</label>
+                    <div class="chip-container items-center">{% for choice in form.days %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
+                </div>
+                <div class="filter-card" data-filter="subjects">
+                    <label id="label-subjects" class="font-bold text-gray-700 text-lg">{{ form.subjects.label }}</label>
+                    <div id="subjects-chip-container" class="chip-container items-center"><p class="text-sm text-gray-500">Выберите школу, класс и тест.</p></div>
+                </div>
+            </div>
+            <div class="mt-8 border-t border-gray-200 pt-6 flex justify-end space-x-4">
+                <a id="btn-reset" href="{% url 'core:monitoring' %}" class="btn btn-secondary">Сбросить</a>
+                <button id="btn-apply" type="submit" class="btn btn-primary">Применить</button>
+            </div>
+        </form>
+    </div>
+
+    {% if has_results %}
+        <div class="mt-8">
+            {% if table_rows %}
+                <div id="table-wrapper" class="bg-white shadow-md rounded-lg overflow-x-auto">
+                    <div class="p-4 border-b flex justify-between items-center action-buttons">
+                        <h2 class="text-lg font-semibold">
+                            <span id="students-found-text">Найдено студентов</span>: {{ table_rows|length }}
+                        </h2>
+                        <div class="flex items-center gap-3">
+                            <button onclick="window.print()" class="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow transition">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 8l-7 7-7-7"></path>
+                                </svg>
+                                Печать
+                            </button>
+                            <a href="{% url 'core:export_monitoring_excel' %}?{{ request.GET.urlencode }}" class="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md shadow transition">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 16v4H8v-4M14 2H10v6H6l6 6 6-6h-4V2z"></path>
+                                </svg>
+                                Excel
+                            </a>
+                            <a href="{% url 'core:export_monitoring_pdf' %}?{{ request.GET.urlencode }}" class="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md shadow transition">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H9a2 2 0 00-2 2v2m12 4v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6m16-2H3"></path>
+                                </svg>
+                                PDF
+                            </a>
+                        </div>
+                    </div>
+                    <table class="min-w-full">
+                        <thead class="bg-indigo-50">
+                            <tr>
+                                <th rowspan="2" class="table-header">№</th>
+                                <th rowspan="2" class="table-header">ФИО Студента</th>
+                                <th rowspan="2" class="table-header">Класс</th>
+                                <th rowspan="2" class="table-header">Тест</th>
+                                {% for header in table_headers %}
+                                    <th class="table-header text-center border-l">{{ header.subject.abbreviation|default:header.subject.name }}</th>
+                                {% endfor %}
+                                <th rowspan="2" class="table-header border-l">Общий балл</th>
+                            </tr>
+                            <tr>
+                                {% for header in table_headers %}
+                                    <th class="px-4 py-2 text-center text-xs font-normal text-gray-500 border-l">(из {{ header.q_count }})</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody id="monitoring-table-body">
+                            {% for row in table_rows %}
+                            <tr data-href="{% url 'core:student_progress' row.student.id %}" class="bg-slate-50 hover:bg-blue-100 cursor-pointer border-b border-slate-200">
+                                <td class="table-cell text-center text-gray-500">{{ forloop.counter }}</td>
+                                <td class="table-cell font-medium text-gray-900">{{ row.student.full_name_ru }}</td>
+                                <td class="table-cell text-center text-gray-700">{{ row.student.school_class.name }}</td>
+                                <td class="table-cell text-center text-gray-700">{{ row.result_obj.gat_test.name }}</td>
+                                {% for header in table_headers %}
+                                    <td class="table-cell text-center">
+                                        {% with score_data=row.scores_by_subject|get_item:header.subject.id %}
+                                            {% if score_data and score_data.score != "—" %}
+                                                <span class="font-semibold text-gray-800">{{ score_data.score }}</span>
+                                            {% else %}
+                                                —
+                                            {% endif %}
+                                        {% endwith %}
+                                    </td>
+                                {% endfor %}
+                                <td class="table-cell text-center font-bold text-indigo-600">{{ row.total_score }}</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="info-box bg-yellow-50 border-yellow-400"><p class="text-yellow-700">По вашему запросу ничего не найдено. Попробуйте изменить параметры фильтра.</p></div>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock content %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('monitoring-form');
+    if (!form) return;
+
+    const schoolsCard = form.querySelector('[data-filter="schools"]');
+    const classesCard = form.querySelector('[data-filter="school_classes"]');
+    const testsCard = form.querySelector('[data-filter="test_numbers"]');
+    const daysCard = form.querySelector('[data-filter="days"]');
+    const classesContainer = document.getElementById('classes-chip-container');
+    const subjectsContainer = document.getElementById('subjects-chip-container');
+    const classesApiUrl = "{% url 'core:api_load_classes_as_chips' %}";
+    const subjectsApiUrl = "{% url 'core:api_load_subjects_for_filters' %}";
+
+    const selectedClassIds = {{ selected_class_ids_json|safe }}.map(String);
+    const selectedSubjectIds = {{ selected_subject_ids_json|safe }}.map(String);
+
+    function getSelectedValues(card) {
+        if (!card) return [];
+        return Array.from(card.querySelectorAll('input:checked')).map(cb => cb.value);
+    }
+
+    const loadClasses = () => {
+        const school_ids = getSelectedValues(schoolsCard);
+        if (school_ids.length === 0) {
+            classesContainer.innerHTML = '<p class="text-sm text-gray-500">Сначала выберите школу.</p>';
+            loadSubjects(); return;
+        }
+        const params = new URLSearchParams();
+        school_ids.forEach(id => params.append('schools', id));
+        selectedClassIds.forEach(id => params.append('school_classes', id));
+        fetch(`${classesApiUrl}?${params.toString()}`).then(r => r.text()).then(html => {
+            classesContainer.innerHTML = html;
+            loadSubjects();
+        }).catch(e => { console.error(e); classesContainer.innerHTML = '<p class="text-sm text-red-500">Ошибка.</p>'; loadSubjects(); });
+    };
+
+    const loadSubjects = () => {
+        const school_ids = getSelectedValues(schoolsCard);
+        let class_ids = getSelectedValues(classesCard);
+        if (class_ids.length === 0 && classesContainer.querySelector('input[name="school_classes"]')) {
+            class_ids = Array.from(classesContainer.querySelectorAll('input[name="school_classes"]')).map(inp => inp.value);
+        }
+        const test_numbers = getSelectedValues(testsCard);
+        const days = getSelectedValues(daysCard);
+
+        if (school_ids.length === 0 || class_ids.length === 0 || test_numbers.length === 0) {
+            subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">Выберите школу, класс и тест.</p>'; return;
+        }
+        const params = new URLSearchParams();
+        school_ids.forEach(id => params.append('school_ids[]', id));
+        class_ids.forEach(id => params.append('class_ids[]', id));
+        test_numbers.forEach(id => params.append('test_numbers[]', id));
+        days.forEach(id => params.append('days[]', id));
+        fetch(`${subjectsApiUrl}?${params.toString()}`).then(r => r.json()).then(data => {
+            subjectsContainer.innerHTML = '';
+            if (data.subjects && data.subjects.length > 0) {
+                data.subjects.forEach(subject => {
+                    const isChecked = selectedSubjectIds.includes(String(subject.id)) ? 'checked' : '';
+                    const label = document.createElement('label');
+                    label.className = 'chip';
+                    label.innerHTML = `<input type="checkbox" name="subjects" value="${subject.id}" ${isChecked}><span>${subject.name}</span>`;
+                    subjectsContainer.appendChild(label);
+                });
+            } else {
+                subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">Нет предметов для этих фильтров.</p>';
+            }
+        }).catch(e => { console.error(e); });
+    };
+
+    if (schoolsCard) { schoolsCard.addEventListener('change', () => {
+        classesContainer.innerHTML = '<p class="text-sm text-gray-500">Загрузка...</p>';
+        subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">...</p>';
+        loadClasses();
+    });}
+    [classesCard, testsCard, daysCard].forEach(card => {
+        if (card) { card.addEventListener('change', loadSubjects); }
+    });
+    
+    loadSubjects();
+
+    const tableBody = document.getElementById('monitoring-table-body');
+    if(tableBody) {
+        tableBody.addEventListener('click', function(event) {
+            const row = event.target.closest('tr[data-href]');
+            if (row) { window.location.href = row.dataset.href; }
+        });
+    }
+});
+</script>
+{% endblock scripts %}

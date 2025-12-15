@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
+    
+    <div class="bg-white shadow-md rounded-lg p-8">
+        <form method="post">
+            {% csrf_token %}
+            
+            {{ form|crispy }}
+            
+            <div class="mt-8 flex justify-end">
+                {# ✅ ИЗМЕНЕНИЕ: Теперь ссылка использует готовую переменную из view #}
+                <a href="{{ cancel_url }}" class="modern-btn secondary">Отмена</a>
+                
+                <button type="submit" class="modern-btn primary ml-4">Сохранить</button>
+            </div>
+        </form>
+    </div>
+{% endblock %}

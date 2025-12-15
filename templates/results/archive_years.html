@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1 class="page-title">{{ title }}</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    {% for year in years %}
+    <a href="{% url 'core:archive_quarters' year.id %}" 
+       class="group block p-6 bg-gradient-to-br from-white to-gray-50 rounded-xl border border-gray-200 shadow-sm hover:shadow-lg hover:border-indigo-300 transition-all duration-300 hover:-translate-y-1">
+        
+        <h2 class="font-bold text-2xl text-gray-800 group-hover:text-indigo-600 transition-colors duration-300">{{ year.name }}</h2>
+        
+        <div class="mt-6 grid grid-cols-2 gap-4 text-center">
+            <div class="border-r border-gray-200 pr-4">
+                <div class="flex items-center justify-center text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span class="ml-2 text-sm font-medium">Тестов</span>
+                </div>
+                <p class="text-3xl font-bold text-gray-900 mt-2">{{ year.test_count }}</p>
+            </div>
+            <div>
+                <div class="flex items-center justify-center text-gray-400">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.124-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.653.124-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+                    </svg>
+                    <span class="ml-2 text-sm font-medium">Учеников</span>
+                </div>
+                <p class="text-3xl font-bold text-gray-900 mt-2">{{ year.student_count }}</p>
+            </div>
+        </div>
+    </a>
+    {% empty %}
+        <p class="text-gray-500 col-span-full text-center py-10">Нет данных для отображения в архиве.</p>
+    {% endfor %}
+</div>
+{% endblock %}

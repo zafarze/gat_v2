@@ -1,0 +1,11 @@
+{# D:\New_GAT\templates\question_counts\partials\_schools_for_bulk_add.html #}
+<div class="p-4 border rounded-lg max-h-60 overflow-y-auto space-y-2"
+     hx-get="{% url 'core:api_load_classes_and_subjects_for_schools' %}"
+     hx-target="#step-3-container"
+     hx-indicator="#loading-indicator"
+     hx-trigger="change from:input[type='checkbox']"
+     hx-include="[name='schools']">
+    
+    {# Рендерим поле с чекбоксами для выбора школ #}
+    {{ form.schools }}
+</div>

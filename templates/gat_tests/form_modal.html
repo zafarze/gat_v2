@@ -1,0 +1,8 @@
+{# D:\New_GAT\templates\gat_tests\form_modal.html (ИСПРАВЛЕННАЯ ВЕРСИЯ) #}
+{% load widget_tweaks %}
+
+<div class="flex flex-col bg-white rounded-xl shadow-2xl max-h-[90vh]">
+    {# ✨ Этот фрагмент вынесен в отдельный файл _form_content.html для переиспользования #}
+    {# Мы загружаем его сюда при первом открытии #}
+    {% include "gat_tests/_form_content.html" %}
+</div>

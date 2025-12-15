@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
+
+{# --- КАРТОЧКА: СРАВНЕНИЕ ПОСЛЕДНИХ РЕЗУЛЬТАТОВ --- #}
+{% if comparison_data %}
+<div class="bg-white p-6 rounded-lg shadow-md mb-8 border-l-4 border-indigo-500">
+    <h2 class="text-xl font-semibold text-gray-800 mb-4">Сравнение с предыдущим тестом</h2>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="text-center">
+            <p class="text-sm text-gray-500">{{ comparison_data.latest.result.gat_test.name }}</p>
+            <p class="text-gray-800 font-bold text-lg">{{ comparison_data.latest.result.gat_test.test_date|date:"d.m.Y" }}</p>
+        </div>
+        <div class="flex justify-around items-center">
+            <div class="text-center">
+                <p class="text-sm text-gray-500">Оценка</p>
+                <p class="text-2xl font-bold {% if comparison_data.grade_diff > 0 %}text-green-600{% elif comparison_data.grade_diff < 0 %}text-red-600{% else %}text-gray-700{% endif %}">
+                    {{ comparison_data.latest.grade }}
+                    <span class="text-lg font-medium">({{ comparison_data.grade_diff | floatformat:0 }})</span>
+                </p>
+            </div>
+            {% if comparison_data.rank_diff is not None %}
+            <div class="text-center">
+                <p class="text-sm text-gray-500">Место в классе</p>
+                <p class="text-2xl font-bold {% if comparison_data.rank_diff > 0 %}text-green-600{% elif comparison_data.rank_diff < 0 %}text-red-600{% else %}text-gray-700{% endif %}">
+                    {{ comparison_data.latest.class_rank }}
+                    <span class="text-lg font-medium">({{ comparison_data.rank_diff | floatformat:0 }})</span>
+                </p>
+            </div>
+            {% endif %}
+        </div>
+        <div class="text-center">
+            <p class="text-sm text-gray-500">{{ comparison_data.previous.result.gat_test.name }}</p>
+            <p class="text-gray-800 font-bold text-lg">{{ comparison_data.previous.result.gat_test.test_date|date:"d.m.Y" }}</p>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{# --- ИСТОРИЯ ТЕСТОВ (УЛУЧШЕННЫЙ АККОРДЕОН) --- #}
+<h2 class="text-2xl font-bold text-gray-800 mb-4">История сданных тестов</h2>
+<div class="space-y-4">
+{% for data in detailed_results_data %}
+    <div class="accordion-item bg-white rounded-lg shadow-md transition-shadow duration-300 hover:shadow-lg">
+        <button
+            type="button"
+            class="accordion-header w-full p-4 rounded-t-lg border-b border-gray-200 flex justify-between items-center text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            aria-expanded="false"
+            aria-controls="accordion-content-{{ forloop.counter }}"
+        >
+            <div>
+                <h3 class="text-lg font-bold text-gray-900">{{ data.result.gat_test.name }}</h3>
+                <p class="text-sm text-gray-500">
+                    {{ data.result.gat_test.test_date|date:"d.m.Y" }} | {{ data.result.gat_test.quarter.name }}
+                </p>
+            </div>
+            <div class="flex items-center space-x-4 text-center">
+                <div class="p-2 rounded-lg bg-indigo-50">
+                    <div class="text-xs text-indigo-700 font-semibold">Оценка</div>
+                    <div class="text-xl font-bold text-indigo-900">{{ data.grade }}/10</div>
+                </div>
+                 <svg class="accordion-arrow w-6 h-6 text-gray-500 transition-transform duration-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+            </div>
+        </button>
+
+        <div
+            id="accordion-content-{{ forloop.counter }}"
+            class="accordion-content hidden p-6"
+            role="region"
+        >
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6 text-center">
+                <div class="bg-gray-100 p-3 rounded-lg">
+                    <div class="text-sm text-gray-700 font-semibold">Место в классе ({{ data.result.student.school_class.name }})</div>
+                    <div class="text-2xl font-bold text-gray-900">{{ data.class_rank }} / {{ data.class_total }}</div>
+                </div>
+                <div class="bg-gray-100 p-3 rounded-lg">
+                    <div class="text-sm text-gray-700 font-semibold">Место на параллели</div>
+                    <div class="text-2xl font-bold text-gray-900">{{ data.parallel_rank }} / {{ data.parallel_total }}</div>
+                </div>
+                <div class="bg-gray-100 p-3 rounded-lg">
+                    <div class="text-sm text-gray-700 font-semibold">Место в школе</div>
+                    <div class="text-2xl font-bold text-gray-900">{{ data.school_rank }} / {{ data.school_total }}</div>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                {% if data.best_subject %}
+                <div class="bg-green-50 border border-green-200 p-3 rounded-lg">
+                    <p class="text-sm font-semibold text-green-800">✅ Лучший предмет</p>
+                    <p class="text-lg font-bold text-green-900">{{ data.best_subject.name }} ({{ data.best_subject.perf|floatformat:1 }}%)</p>
+                </div>
+                {% endif %}
+                 {% if data.worst_subject %}
+                <div class="bg-red-50 border border-red-200 p-3 rounded-lg">
+                    <p class="text-sm font-semibold text-red-800">❌ Худший предмет</p>
+                    <p class="text-lg font-bold text-red-900">{{ data.worst_subject.name }} ({{ data.worst_subject.perf|floatformat:1 }}%)</p>
+                </div>
+                {% endif %}
+            </div>
+
+            <div>
+                <h4 class="text-md font-semibold text-gray-700 mb-3">Разбор по вопросам:</h4>
+                <div class="space-y-5">
+                {% for item in data.processed_scores %} {# Используем переменную из view #}
+                    <div class="{% if not forloop.first %} border-t border-gray-200 pt-5 {% endif %}">
+                        <div class="flex justify-between items-center mb-2 flex-wrap gap-2">
+                            <p class="font-semibold text-gray-800 text-lg">{{ item.subject }}</p> {# Название предмета #}
+                            <div class="flex items-center space-x-3 text-sm">
+                                <span class="bg-indigo-100 text-indigo-800 font-bold px-2.5 py-1 rounded-md" title="Оценка по предмету">
+                                    {{ item.grade }}/10 {# Оценка по предмету #}
+                                </span>
+                                <span class="flex items-center text-green-600 font-medium" title="Правильно">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                                    {{ item.correct }} {# Количество правильных #}
+                                </span>
+                                <span class="flex items-center text-red-600 font-medium" title="Неправильно">
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                                    {{ item.incorrect }} {# Количество неправильных #}
+                                </span>
+                                <span class="text-gray-600 font-medium bg-gray-100 px-2.5 py-1 rounded-md" title="Процент выполнения">
+                                    {{ item.percentage|floatformat:1 }}% {# Процент выполнения #}
+                                </span>
+                            </div>
+                        </div>
+
+                        {# --- ✨ ИСПРАВЛЕННЫЙ ЦИКЛ ДЛЯ ПУЗЫРЬКОВ --- #}
+                        <div class="flex flex-wrap gap-2">
+                            {% for q_num, was_correct in item.answers %}
+                                {# --- ✨ ИЗМЕНЕНИЕ ЗДЕСЬ ✨ --- #}
+                                {# Добавляем условие {% if was_correct %}...{% else %}...{% endif %} для классов #}
+                                <span class="flex items-center justify-center w-8 h-8 text-xs font-bold rounded-full {% if was_correct %}bg-green-100 text-green-800{% else %}bg-red-100 text-red-800{% endif %}" title="Вопрос {{ q_num }}: {% if was_correct %}Правильно{% else %}Ошибка{% endif %}">
+                                    {{ q_num }}
+                                </span>
+                                {# --- ✨ КОНЕЦ ИЗМЕНЕНИЯ ✨ --- #}
+                            {% endfor %}
+                        </div>
+                        {# --- ✨ КОНЕЦ ИСПРАВЛЕНИЯ --- #}
+                    </div>
+                {% empty %} {# Добавлен блок empty на случай, если processed_scores пуст #}
+                    <p class="text-gray-500 italic">Нет данных для разбора по вопросам для этого теста.</p>
+                {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% empty %}
+    <div class="bg-white p-6 rounded-lg shadow-md text-center">
+        <p class="text-gray-500">У этого студента пока нет результатов для анализа.</p>
+    </div>
+{% endfor %}
+</div>
+
+<div class="mt-8 bg-white p-6 rounded-lg shadow-md">
+    <div class="flex justify-between items-center mb-4">
+        <h3 class="text-xl font-semibold text-gray-700">Заметки о студенте</h3>
+        <a href="{% url 'core:note_add' student_pk=student.pk %}" class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition-colors duration-200">
+            + Добавить заметку
+        </a>
+    </div>
+
+    {% for note in notes %}
+        <div class="border-t border-gray-200 py-4">
+            <p class="text-gray-800">{{ note.note|linebreaksbr }}</p>
+            <div class="text-sm text-gray-500 mt-2 flex justify-between items-center">
+                <span>Автор: {{ note.author.get_full_name|default:note.author.username }} - {{ note.created_at|date:"d.m.Y H:i" }}</span>
+                {% if request.user == note.author or request.user.is_superuser %}
+                    <a href="{% url 'core:note_delete' pk=note.pk %}" class="text-red-500 hover:text-red-700 transition-colors duration-200">Удалить</a>
+                {% endif %}
+            </div>
+        </div>
+    {% empty %}
+        <p class="text-gray-500">Заметок пока нет.</p>
+    {% endfor %}
+</div>
+
+{# --- JAVASCRIPT ДЛЯ АККОРДЕОНА --- #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const accordionItems = document.querySelectorAll('.accordion-item');
+
+    if (accordionItems.length > 0) {
+        // Открываем первый элемент по умолчанию
+        const firstItem = accordionItems[0];
+        const firstHeader = firstItem.querySelector('.accordion-header');
+        const firstContent = firstItem.querySelector('.accordion-content');
+        const firstArrow = firstItem.querySelector('.accordion-arrow');
+
+        if (firstHeader && firstContent && firstArrow) {
+            firstHeader.setAttribute('aria-expanded', 'true');
+            firstContent.classList.remove('hidden');
+            firstArrow.classList.add('rotate-180');
+        }
+
+        // Добавляем обработчик на каждый элемент
+        accordionItems.forEach(item => {
+            const header = item.querySelector('.accordion-header');
+            const content = item.querySelector('.accordion-content');
+            const arrow = item.querySelector('.accordion-arrow');
+
+            header.addEventListener('click', () => {
+                const isExpanded = header.getAttribute('aria-expanded') === 'true';
+                header.setAttribute('aria-expanded', !isExpanded);
+                content.classList.toggle('hidden');
+                arrow.classList.toggle('rotate-180');
+            });
+        });
+    }
+});
+</script>
+
+{% endblock %}

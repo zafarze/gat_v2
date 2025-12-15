@@ -1,0 +1,17 @@
+{% extends 'base.html' %}
+
+{% block title %}Подтверждение удаления{% endblock %}
+
+{% block content %}
+<div class="bg-white p-8 rounded-lg shadow-md max-w-xl mx-auto">
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">Подтверждение удаления</h1>
+    <p class="text-lg">Вы уверены, что хотите удалить пользователя <strong>"{{ object.get_full_name|default:object.username }}"</strong>?</p>
+    <p class="text-gray-600 mt-2">Это действие нельзя будет отменить.</p>
+    <form method="post" class="mt-6 flex justify-end space-x-3">
+        {% csrf_token %}
+        {# ИСПРАВЛЕНО #}
+        <a href="{% url 'core:user_list' %}" class="modern-btn secondary">Отмена</a>
+        <button type="submit" class="modern-btn danger">Да, удалить</button>
+    </form>
+</div>
+{% endblock %}

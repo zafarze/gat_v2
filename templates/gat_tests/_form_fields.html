@@ -1,0 +1,11 @@
+{# D:\New_GAT\templates\gat_tests\_form_fields.html #}
+
+<div>
+    <label class="modern-label">{{ form.school_class.label }}</label> {# <-- ИЗМЕНЕНО #}
+    
+    {% include "gat_tests/_class_chips.html" %}
+
+    {% for error in form.school_class.errors %} {# <-- ИЗМЕНЕНО #}
+        <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+    {% endfor %}
+</div>

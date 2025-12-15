@@ -1,0 +1,24 @@
+<ul class="space-y-4">
+    {% for school in schools %}
+        <li class="p-4 border rounded-lg hover:bg-gray-50 transition">
+            <a href="{% url 'core:student_class_list' school.id %}" class="flex justify-between items-center">
+                <span class="text-lg font-medium text-gray-800">{{ school.name }}</span>
+                <span class="px-3 py-1 text-sm font-semibold text-gray-600 bg-gray-100 rounded-full">
+                    {{ school.student_count }} учеников
+                </span>
+            </a>
+        </li>
+    {% empty %}
+        <div class="text-center text-gray-500 py-12">
+            <h3 class="text-lg font-semibold">Школы не найдены</h3>
+            {% if search_query %}
+                <p class="mt-1">Попробуйте изменить ваш поисковый запрос.</p>
+            {% else %}
+                <p class="mt-2">В системе пока нет школ с учениками.</p>
+                <a href="{% url 'core:student_upload' %}" class="modern-btn primary mt-4">
+                    Загрузить учеников
+                </a>
+            {% endif %}
+        </div>
+    {% endfor %}
+</ul>

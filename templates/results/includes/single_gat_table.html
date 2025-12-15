@@ -1,0 +1,36 @@
+<table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50">
+        <tr>
+            <th class="table-header">Место</th>
+            <th class="table-header">Ф.И.О</th>
+            <th class="table-header text-center">Общий балл</th>
+        </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-gray-200">
+        {% for data in students_data %}
+        <tr class="hover:bg-gray-50">
+            <td class="table-cell font-bold text-lg">
+                {% if forloop.counter == 1 %}🥇
+                {% elif forloop.counter == 2 %}🥈
+                {% elif forloop.counter == 3 %}🥉
+                {% else %}{{ forloop.counter }}
+                {% endif %}
+            </td>
+            <td class="table-cell font-medium">
+                 {# В этом файле нет ссылки на student_progress, но есть на student_result_detail #}
+                 {# ИСПРАВЛЕНО ЗДЕСЬ #}
+                <a href="{% url 'core:student_result_detail' data.result.pk %}" class="hover:text-indigo-600 hover:underline">
+                    {{ data.student.full_name_ru }}
+                </a>
+            </td>
+            <td class="table-cell text-center font-bold text-indigo-600">
+                {{ data.total_score }}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            <td colspan="3" class="text-center py-10 text-gray-500">Нет данных для отображения.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

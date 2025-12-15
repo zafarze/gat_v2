@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block content %}
+
+<div class="mb-6">
+    {# Ссылка "Назад" #}
+    {# Исправлено: Убедимся, что ссылка назад работает, даже если нет parent #}
+    <a href="{% url 'core:archive_classes' quarter_id=quarter.id school_id=school_class.school.id %}" class="text-indigo-600 hover:underline mb-4 inline-block">&larr; Назад к списку параллелей</a>
+
+    <h1 class="text-3xl font-bold text-gray-800">Класс: {{ school_class.name }}</h1>
+    <div class="mt-2 text-sm text-gray-500">
+        <p>Четверть: {{ quarter }}</p>
+        <p>Школа: {{ school_class.school.name }}</p>
+    </div>
+</div>
+
+{# --- БЛОК ФИЛЬТРА GAT --- #}
+<div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6">
+    <form method="get" action="" class="flex items-center space-x-4">
+        <div>
+            <label for="gat_number" class="block text-sm font-medium text-gray-700">Выберите тест:</label>
+            <select name="gat_number" id="gat_number"
+                    onchange="this.form.submit()" {# Отправляем форму при изменении #}
+                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+
+                {# 'gat_number_choices' приходит из view #}
+                {% for value, name in gat_number_choices %}
+                    <option value="{{ value }}"
+                            {% if value == selected_gat_number %}selected{% endif %}>
+                        {{ name }} {# GAT-1, GAT-2... #}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+</div>
+{# --- КОНЕЦ БЛОКА ФИЛЬТРА GAT --- #}
+
+{# --- КОНТЕЙНЕР ДЛЯ ВКЛАДОК (ALPINE.JS) --- #}
+<div x-data="{ activeTab: 'total' }">
+    {# --- ПЕРЕКЛЮЧАТЕЛИ ВКЛАДОК --- #}
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+            <button @click="activeTab = 'total'"
+                    :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'total', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'total' }"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Итоговый рейтинг
+            </button>
+
+            <button @click="activeTab = 'day1'"
+                    :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'day1', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'day1' }"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                День 1
+            </button>
+
+            <button @click="activeTab = 'day2'"
+                    :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'day2', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'day2' }"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                День 2
+            </button>
+        </nav>
+    </div>
+
+    {# --- КОНТЕЙНЕР ДЛЯ СОДЕРЖИМОГО ВКЛАДОК --- #}
+    <div class="bg-white shadow-md rounded-lg overflow-x-auto">
+
+        {# --- Содержимое вкладки "Итоговый рейтинг" --- #}
+        {# x-show="activeTab === 'total'" делает видимым при активной вкладке #}
+        <div x-show="activeTab === 'total'">
+            {# Включаем шаблон для итоговой таблицы #}
+            {# Передаем students_data_total как students_data #}
+            {% include 'results/includes/total_table.html' with students_data=students_data_total header1="День 1" header2="День 2" %}
+        </div>
+
+        {# --- Содержимое вкладки "День 1" --- #}
+        <div x-show="activeTab === 'day1'">
+            {# Проверяем, есть ли данные для дня 1 #}
+            {% if test_day1 and students_data_gat1 %}
+                {# Включаем шаблон для детальной таблицы #}
+                {# Передаем students_data_gat1 и table_header_gat1 #}
+                {% include 'results/includes/detailed_table.html' with students_data=students_data_gat1 table_header=table_header_gat1 %}
+            {% else %}
+                 {# Сообщение, если данных нет #}
+                 <p class="p-6 text-center text-gray-500">Нет данных для Дня 1 в этой четверти.</p>
+            {% endif %}
+        </div>
+
+        {# --- Содержимое вкладки "День 2" --- #}
+        <div x-show="activeTab === 'day2'">
+             {# Проверяем, есть ли данные для дня 2 #}
+            {% if test_day2 and students_data_gat2 %}
+                {# Включаем шаблон для детальной таблицы #}
+                {# Передаем students_data_gat2 и table_header_gat2 #}
+                {% include 'results/includes/detailed_table.html' with students_data=students_data_gat2 table_header=table_header_gat2 %}
+            {% else %}
+                 {# Сообщение, если данных нет #}
+                <p class="p-6 text-center text-gray-500">Нет данных для Дня 2 в этой четверти.</p>
+            {% endif %}
+        </div>
+
+    </div> {# Конец bg-white #}
+</div> {# Конец x-data #}
+{% endblock %}

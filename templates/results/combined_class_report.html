@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block content %}
+{# --- Кнопка "Назад" --- #}
+<a href="{% url 'core:archive_subclasses' quarter.id parent_class.school.id parent_class.id %}" class="text-indigo-600 hover:underline mb-4 inline-block">&larr; Назад к выбору класса</a>
+
+{# --- ОСНОВНОЙ ЗАГОЛОВОК И КНОПКА ПЕЧАТИ --- #}
+<div class="flex flex-wrap justify-between items-center gap-4 mb-6 action-buttons">
+    <div>
+        <h1 class="text-3xl font-bold text-gray-800">{{ title }}</h1>
+        <p class="text-sm text-gray-500">Четверть: {{ quarter.name }}</p>
+    </div>
+    {# --- КНОПКА ПЕЧАТИ ОСТАЕТСЯ ЗДЕСЬ --- #}
+    <button onclick="window.print()" class="bg-gray-100 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-200 text-sm font-medium no-print">Печать</button>
+</div>
+
+{# --- ✨✨✨ НАЧАЛО ИЗМЕНЕНИЯ ✨✨✨ --- #}
+{# --- ВЫНОСИМ ФОРМУ В ОТДЕЛЬНЫЙ БЛОК НИЖЕ ЗАГОЛОВКА --- #}
+<div class="bg-white p-4 rounded-lg shadow-sm border border-gray-200 mb-6 no-print"> {# Добавляем стили и no-print #}
+    <form method="get" action="" class="flex items-center space-x-4"> {# Увеличиваем space-x для отступа #}
+        <div> {# Оборачиваем в div для выравнивания #}
+            <label for="gat_number" class="block text-sm font-medium text-gray-700">Выберите тест:</label> {# Меняем текст метки #}
+            <select name="gat_number" id="gat_number"
+                    onchange="this.form.submit()"
+                    class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"> {# Используем стили как в другом шаблоне #}
+                {% for value, name in gat_number_choices %}
+                    <option value="{{ value }}" {% if value == selected_gat_number %}selected{% endif %}>
+                        {{ name }}
+                    </option>
+                {% endfor %}
+            </select>
+        </div>
+    </form>
+</div>
+{# --- ✨✨✨ КОНЕЦ ИЗМЕНЕНИЯ ✨✨✨ --- #}
+
+<div x-data="{ activeTab: 'total' }">
+    <div class="border-b border-gray-200 mb-6 no-print">
+        <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+            <button @click="activeTab = 'total'"
+                    :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'total', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'total' }"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Итоговый рейтинг
+            </button>
+            <button @click="activeTab = 'day1'"
+                    :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'day1', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'day1' }"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                День 1
+            </button>
+            <button @click="activeTab = 'day2'"
+                    :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'day2', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'day2' }"
+                    class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                День 2
+            </button>
+        </nav>
+    </div>
+
+    {# --- Содержимое вкладок остается без изменений --- #}
+    <div class="bg-white shadow-md rounded-lg overflow-x-auto content-to-print">
+        <div x-show="activeTab === 'total'">
+            {% include 'results/includes/total_table.html' with students_data=students_data_total header1="День 1" header2="День 2" %}
+        </div>
+        <div x-show="activeTab === 'day1'">
+            {% if test_day1 and students_data_day1 %}
+                {% include 'results/includes/detailed_table.html' with students_data=students_data_day1 table_header=table_header_day1 %}
+            {% else %}
+                 <p class="p-6 text-center text-gray-500">Нет данных для Дня 1 этого теста.</p>
+            {% endif %}
+        </div>
+        <div x-show="activeTab === 'day2'">
+            {% if test_day2 and students_data_day2 %}
+                {% include 'results/includes/detailed_table.html' with students_data=students_data_day2 table_header=table_header_day2 %}
+            {% else %}
+                <p class="p-6 text-center text-gray-500">Нет данных для Дня 2 этого теста.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+    @media print {
+        body { background-color: white !important; }
+        aside, header, .action-buttons, .no-print { display: none !important; }
+        main { padding: 0 !important; margin: 0 !important; }
+        .content-to-print {
+             box-shadow: none !important;
+             border: none !important;
+        }
+        [x-data] > div:not(:first-child) > div {
+            display: none !important;
+        }
+        [x-data] > div:not(:first-child) > div[x-show^="activeTab"] {
+            display: block !important;
+        }
+    }
+</style>
+{% endblock %}

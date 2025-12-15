@@ -1,0 +1,17 @@
+{% load widget_tweaks %}
+
+<div class="grid grid-cols-2 gap-6 mt-6">
+    <div>
+        <label class="form-label" for="{{ form.school_class.id_for_label }}">3. {{ form.school_class.label }}</label>
+        {% render_field form.school_class class+="form-select" %}
+    </div>
+    <div>
+        <label class="form-label" for="{{ form.subject.id_for_label }}">4. {{ form.subject.label }}</label>
+        {% render_field form.subject class+="form-select" %}
+    </div>
+</div>
+
+<div class="mt-6">
+    <label class="form-label" for="{{ form.number_of_questions.id_for_label }}">5. {{ form.number_of_questions.label }}</label>
+    {% render_field form.number_of_questions class+="form-input" %}
+</div>

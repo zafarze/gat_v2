@@ -1,0 +1,48 @@
+{% load widget_tweaks %}
+
+<form hx-post="{{ request.path }}" hx-target="#modal-content-wrapper" method="post" id="question-count-form" class="flex flex-col flex-grow min-h-0">
+    {% csrf_token %}
+
+    <div class="p-8 overflow-y-auto flex-grow space-y-6">
+        {% if form.non_field_errors %}
+            <div class="p-3 bg-red-100 text-red-700 rounded-lg">
+                {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+            </div>
+        {% endif %}
+
+        <div>
+            <label for="{{ form.school.id_for_label }}" class="modern-label">{{ form.school.label }}</label>
+            {% url 'core:load_fields_for_qc' as htmx_url %}
+            {% render_field form.school class+="modern-input" hx-get=htmx_url hx-target="#class-subject-container" hx-indicator="#loading-indicator" %}
+            {% for error in form.school.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+        </div>
+
+        <div id="class-subject-container" class="space-y-6">
+            {% if form.instance.pk or form.is_bound %}
+                {% include 'question_counts/partials/_dependent_fields.html' %}
+            {% else %}
+                <div>
+                    <label class="modern-label">{{ form.school_class.label }}</label>
+                    <div class="form-placeholder">Сначала выберите школу</div>
+                </div>
+                <div>
+                    <label class="modern-label">{{ form.subject.label }}</label>
+                    <div class="form-placeholder">Сначала выберите школу</div>
+                </div>
+            {% endif %}
+        </div>
+
+        <div id="loading-indicator" class="htmx-indicator text-sm text-gray-500">Загрузка...</div>
+
+        <div>
+            <label for="{{ form.number_of_questions.id_for_label }}" class="modern-label">{{ form.number_of_questions.label }}</label>
+            {% render_field form.number_of_questions class+="modern-input" %}
+            {% for error in form.number_of_questions.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+        </div>
+    </div>
+
+    <div class="p-6 bg-gray-50 rounded-b-xl border-t flex justify-end items-center gap-4 flex-shrink-0">
+        <button type="button" @click="showModal = false" class="modern-btn secondary">Отмена</button>
+        <button type="submit" class="modern-btn primary">Сохранить</button>
+    </div>
+</form>

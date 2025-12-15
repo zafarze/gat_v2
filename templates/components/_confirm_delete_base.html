@@ -1,0 +1,29 @@
+{# templates/components/_confirm_delete_base.html (ИСПРАВЛЕННАЯ ВЕРСИЯ) #}
+{% extends "base.html" %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="page-header">
+        <div>
+            {# ИСПРАВЛЕНО: Добавлен тег 'url' для переменной cancel_url #}
+            <a href="{% url cancel_url %}" class="back-link">&larr; Отмена и возврат к списку</a>
+            <h1 class="page-title mt-1 text-red-600">{{ title }}</h1>
+        </div>
+    </div>
+
+    <div class="data-card p-8">
+        <p class="text-lg text-gray-700">Вы уверены, что хотите удалить <strong>"{{ item }}"</strong>?</p>
+        <p class="text-gray-500 mt-2">Это действие нельзя будет отменить.</p>
+        
+        {% block extra_warning %}{% endblock %}
+        
+        <form method="post" class="mt-8 flex justify-end space-x-4 border-t pt-5">
+            {# ИСПРАВЛЕНО: Добавлен тег 'url' для переменной cancel_url #}
+            <a href="{% url cancel_url %}" class="btn btn-secondary">Нет, отменить</a>
+            <button type="submit" class="btn btn-danger">Да, подтверждаю</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{% load custom_filters %}
+{% load widget_tweaks %}
+
+{# --- Ряд 5: Класс (одно поле) --- #}
+<div class="mt-6">
+    <label for="{{ form.school_class.id_for_label }}" class="modern-label">{{ form.school_class.label }}</label>
+    {{ form.school_class }}
+    {% for error in form.school_class.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+</div>
+
+{# --- Ряд 6: Предметы --- #}
+<div class="mt-6">
+    <label class="modern-label">{{ form.subjects.label }}</label>
+    
+    <div class="p-3 border rounded-lg mt-1 bg-white">
+        <div class="space-y-3">
+            {% for checkbox in form.subjects %}
+                <div class="flex items-center justify-between" x-data>
+                    
+                    <div class="flex items-center">
+                        {{ checkbox.tag }}
+                        <label for="{{ checkbox.id_for_label }}" class="ml-2 text-sm text-gray-700 select-none">{{ checkbox.choice_label }}</label>
+                    </div>
+
+                    <div x-show="document.getElementById('{{ checkbox.id_for_label }}').checked" 
+                         x-transition:enter="transition ease-out duration-200" 
+                         x-transition:enter-start="opacity-0 transform scale-90" 
+                         x-transition:enter-end="opacity-100 transform scale-100">
+                         
+                        <input type="number"
+       name="questions_{{ checkbox.data.value }}"
+       value="{{ form.question_counts|get_item:checkbox.data.value|default:'' }}"
+       class="w-28 modern-input-small text-center"
+       placeholder="Вопросов"
+       min="1">
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    {% for error in form.subjects.errors %}<p class="form-error mt-1">{{ error }}</p>{% endfor %}
+</div>

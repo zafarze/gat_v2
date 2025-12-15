@@ -1,0 +1,278 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block head %}
+<link rel="stylesheet" href="{% static 'css/deep_analysis.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <h1 class="text-3xl font-bold text-gray-800">{{ title }}</h1>
+
+    {# --- НОВАЯ ПАНЕЛЬ ФИЛЬТРОВ --- #}
+    <div class="glass-card p-6 rounded-lg mb-8">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">Фильтры</h2>
+        <form method="get" id="statistics-form">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                <div class="filter-card" data-filter="quarters">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.quarters.label }}</label>
+                    <div class="chip-container items-center">
+                        {% for choice in form.quarters %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}
+                    </div>
+                </div>
+                <div class="filter-card" data-filter="schools">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.schools.label }}</label>
+                    <div class="chip-container items-center">
+                        {% for choice in form.schools %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}
+                    </div>
+                </div>
+                <div class="filter-card" id="classes-filter-card" data-filter="school_classes">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.school_classes.label }}</label>
+                    <div id="classes-chip-container" class="chip-container items-center">
+                        {% if grouped_classes %}
+                            {% for group_name, classes_in_group in grouped_classes.items %}
+                                <div class="w-full">
+                                    <p class="font-semibold text-gray-600 text-sm mt-2 mb-1">{{ group_name }}</p>
+                                    {% for choice in classes_in_group %}
+                                        {% with choice_id_str=choice.id|stringformat:"s" %}
+                                        <label class="chip">
+                                            <input type="checkbox" name="school_classes" value="{{ choice.id }}" {% if choice_id_str in selected_class_ids %}checked{% endif %}>
+                                            <span>{{ choice.name }}</span>
+                                        </label>
+                                        {% endwith %}
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-sm text-gray-500">Сначала выберите школу.</p>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="filter-card" data-filter="test_numbers">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.test_numbers.label }}</label>
+                    <div class="chip-container items-center">
+                        {% for choice in form.test_numbers %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}
+                    </div>
+                </div>
+                <div class="filter-card" data-filter="days">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.days.label }}</label>
+                    <div class="chip-container items-center">
+                        {% for choice in form.days %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}
+                    </div>
+                </div>
+                <div class="filter-card" id="subjects-filter-card" data-filter="subjects">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.subjects.label }}</label>
+                    <div id="subjects-chip-container" class="chip-container items-center">
+                        <p class="text-sm text-gray-500">...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-8 border-t pt-6 flex justify-end">
+                <button type="submit" class="btn btn-primary px-10 py-3 text-lg">Применить</button>
+            </div>
+        </form>
+    </div>
+
+    {% if has_results %}
+        {# --- KPI КАРТОЧКИ --- #}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-lg shadow flex items-center space-x-4">
+                <div class="flex-shrink-0 bg-green-100 rounded-full h-12 w-12 flex items-center justify-center"><svg class="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18L9 11.25l4.306 4.307a11.95 11.95 0 015.814-5.519l2.74-1.22m0 0l-3.75-2.25M21 12l-3.75 2.25" /></svg></div>
+                <div><h3 class="text-sm font-medium text-gray-500">Лучший предмет</h3><p class="mt-1 text-xl font-semibold text-green-600">{{ top_subject.name }} ({{ top_subject.percentage }}%)</p></div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow flex items-center space-x-4">
+                <div class="flex-shrink-0 bg-red-100 rounded-full h-12 w-12 flex items-center justify-center"><svg class="h-6 w-6 text-red-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M2.25 6L9 12.75l4.286-4.286a11.948 11.948 0 014.306 6.43l.776 2.898m0 0l3.182-5.511m-3.182 5.511l-5.511-3.182" /></svg></div>
+                <div><h3 class="text-sm font-medium text-gray-500">Худший предмет</h3><p class="mt-1 text-xl font-semibold text-red-600">{{ bottom_subject.name }} ({{ bottom_subject.percentage }}%)</p></div>
+            </div>
+            <div class="bg-white p-4 rounded-lg shadow"><h3 class="text-sm font-medium text-gray-500">Средний % успеваемости</h3><p class="mt-1 text-2xl font-semibold text-indigo-600">{{ average_score }}%</p></div>
+            <div class="bg-white p-4 rounded-lg shadow"><h3 class="text-sm font-medium text-gray-500">Всего результатов</h3><p class="mt-1 text-2xl font-semibold text-indigo-600">{{ total_tests_taken }}</p></div>
+        </div>
+
+        {# --- ИСПРАВЛЕННЫЙ ГРАФИК УСПЕВАЕМОСТИ --- #}
+        {% if subject_perf_labels and subject_perf_data %}
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h3 class="text-lg font-medium leading-6 text-gray-900">Успеваемость по предметам</h3>
+            <div class="relative" style="height: calc({{ subject_perf_count }} * 35px + 80px);">
+                <canvas id="subjectPerformanceChart" class="mt-4"></canvas>
+            </div>
+        </div>
+        {% endif %}
+
+        {# --- ОСТАЛЬНЫЕ БЛОКИ (ОБЩАЯ УСПЕВАЕМОСТЬ, ОТЧЕТ) ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ --- #}
+        {% if school_summary_report.grades %}
+        <div class="bg-white p-6 rounded-lg shadow">
+            <h2 class="text-xl font-bold text-gray-800 mb-4">Общая успеваемость (Итог)</h2>
+            <div class="flex items-baseline space-x-2 mb-4"><p class="text-gray-600">Ҳисоби миёна (Средний балл):</p><p class="text-4xl font-bold text-indigo-600">{{ school_summary_report.average_score }}/100</p></div>
+            <ul class="divide-y divide-gray-200">
+                {% for grade_num in grade_range %}
+                <li class="py-3 flex justify-between items-center"><span class="text-md font-medium text-gray-700">Баҳои {{ grade_num }} (Оценка {{ grade_num }})</span><span class="text-lg font-semibold text-gray-900">{{ school_summary_report.grades|get_item:grade_num|default:0 }} учеников</span></li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+        {% if grade_distribution_report %}
+        <div class="space-y-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-6">Отчет по успеваемости (по предметам)</h2>
+            {% for subject, class_data in grade_distribution_report.items|dictsort:0 %}
+                <div class="bg-white shadow-md rounded-lg overflow-x-auto mb-8">
+                    <table class="min-w-full">
+                        <thead class="bg-yellow-400">
+                            <tr>
+                                <th class="py-3 px-4 border-r border-gray-300 w-1/4"></th>
+                                <th colspan="{{ class_data|length }}" class="py-3 px-4 text-center font-bold text-xl text-gray-800">{{ subject }}</th>
+                            </tr>
+                            <tr>
+                                <th class="py-2 px-4 border-r border-gray-300 text-left text-sm font-medium text-gray-600">Показатель</th>
+                                {% for class_name, data in class_data.items|dictsort:0 %}{% if class_name != "Итог" %}<th class="py-2 px-4 text-center font-bold text-lg border-r border-gray-300">{{ class_name }}</th>{% endif %}{% endfor %}
+                                <th class="py-2 px-4 text-center font-bold text-lg bg-yellow-500 text-white">Итог</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-200">
+                            <tr class="bg-yellow-50">
+                                <td class="py-3 px-4 font-semibold border-r border-gray-300 text-sm">Ҳисоби миёна (Средний балл)</td>
+                                {% for class_name, data in class_data.items|dictsort:0 %}{% if class_name != "Итог" %}<td class="py-3 px-4 text-center font-bold text-lg">{{ data.average_score|default:"—" }}/100</td>{% endif %}{% endfor %}
+                                <td class="py-3 px-4 text-center font-bold text-lg bg-gray-200">{{ class_data.Итог.average_score }}/100</td>
+                            </tr>
+                            {% for grade_num in grade_range %}
+                                <tr>
+                                    <td class="py-2 px-4 font-medium border-r border-gray-300 text-sm">Баҳои {{ grade_num }} (Оценка {{ grade_num }})</td>
+                                    {% for class_name, data in class_data.items|dictsort:0 %}{% if class_name != "Итог" %}<td class="py-2 px-4 text-center font-semibold">{{ data.grades|get_item:grade_num|default:0 }}</td>{% endif %}{% endfor %}
+                                    <td class="py-2 px-4 text-center font-bold bg-gray-200">{{ class_data.Итог.grades|get_item:grade_num|default:0 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    {% elif request.GET %}
+        <div class="bg-yellow-100 text-yellow-800 p-6 rounded-lg shadow text-center"><h3 class="font-bold text-lg">Результаты не найдены</h3><p>По вашему запросу нет данных. Попробуйте выбрать другие фильтры.</p></div>
+    {% else %}
+        <div class="bg-blue-100 text-blue-800 p-6 rounded-lg shadow text-center"><h3 class="font-bold text-lg">Начните анализ</h3><p>Выберите параметры в фильтре выше и нажмите "Применить".</p></div>
+    {% endif %}
+</div>
+
+{# --- JAVASCRIPT --- #}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    Chart.register(ChartDataLabels);
+    const form = document.getElementById('statistics-form');
+    if (!form) return;
+    const schoolsCard = form.querySelector('[data-filter="schools"]');
+    const classesCard = form.querySelector('[data-filter="school_classes"]');
+    const testsCard = form.querySelector('[data-filter="test_numbers"]');
+    const daysCard = form.querySelector('[data-filter="days"]');
+    const classesContainer = document.getElementById('classes-chip-container');
+    const subjectsContainer = document.getElementById('subjects-chip-container');
+    const classesApiUrl = "{% url 'core:api_load_classes_as_chips' %}";
+    const subjectsApiUrl = "{% url 'core:api_load_subjects_for_filters' %}";
+    const selectedClassIds = {{ selected_class_ids_json|safe }}.map(String);
+    const selectedSubjectIds = {{ selected_subject_ids_json|safe }}.map(String);
+    function getSelectedValues(card) {
+        if (!card) return [];
+        return Array.from(card.querySelectorAll('input:checked')).map(cb => cb.value);
+    }
+    const loadClasses = () => {
+        const school_ids = getSelectedValues(schoolsCard);
+        if (school_ids.length === 0) {
+            classesContainer.innerHTML = '<p class="text-sm text-gray-500">Сначала выберите школу.</p>';
+            loadSubjects(); return;
+        }
+        const params = new URLSearchParams();
+        school_ids.forEach(id => params.append('schools', id));
+        selectedClassIds.forEach(id => params.append('school_classes', id));
+        fetch(`${classesApiUrl}?${params.toString()}`).then(response => response.text()).then(html => {
+            classesContainer.innerHTML = html; loadSubjects();
+        }).catch(error => {
+            console.error('Ошибка при загрузке классов:', error);
+            classesContainer.innerHTML = '<p class="text-sm text-red-500">Не удалось загрузить классы.</p>';
+            loadSubjects();
+        });
+    };
+    const loadSubjects = () => {
+        const school_ids = getSelectedValues(schoolsCard);
+        let class_ids = getSelectedValues(classesCard);
+        if (class_ids.length === 0 && classesContainer.querySelector('input[name="school_classes"]')) {
+             class_ids = Array.from(classesContainer.querySelectorAll('input[name="school_classes"]')).map(inp => inp.value);
+        }
+        const test_numbers = getSelectedValues(testsCard);
+        const days = getSelectedValues(daysCard);
+        if (school_ids.length === 0 || class_ids.length === 0 || test_numbers.length === 0) {
+            subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">Выберите школу, класс и тест.</p>'; return;
+        }
+        const params = new URLSearchParams();
+        school_ids.forEach(id => params.append('school_ids[]', id));
+        class_ids.forEach(id => params.append('class_ids[]', id));
+        test_numbers.forEach(id => params.append('test_numbers[]', id));
+        days.forEach(id => params.append('days[]', id));
+        fetch(`${subjectsApiUrl}?${params.toString()}`).then(response => response.json()).then(data => {
+            subjectsContainer.innerHTML = '';
+            if (data.subjects && data.subjects.length > 0) {
+                data.subjects.forEach(subject => {
+                    const isChecked = selectedSubjectIds.includes(String(subject.id)) ? 'checked' : '';
+                    const label = document.createElement('label');
+                    label.className = 'chip';
+                    label.innerHTML = `<input type="checkbox" name="subjects" value="${subject.id}" ${isChecked}><span>${subject.name}</span>`;
+                    subjectsContainer.appendChild(label);
+                });
+            } else {
+                subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">Нет предметов для этих фильтров.</p>';
+            }
+        }).catch(error => {
+            console.error('Ошибка при загрузке предметов:', error);
+            subjectsContainer.innerHTML = '<p class="text-sm text-red-500">Не удалось загрузить предметы.</p>';
+        });
+    };
+    ['quarters', 'schools', 'test_numbers', 'days'].forEach(filterName => {
+        const card = form.querySelector(`[data-filter="${filterName}"]`);
+        if (!card) return;
+        const paramValues = new URLSearchParams(window.location.search).getAll(filterName);
+        if (paramValues.length > 0) {
+            card.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                if (paramValues.includes(cb.value)) { cb.checked = true; }
+            });
+        }
+    });
+    if (schoolsCard) { schoolsCard.addEventListener('change', () => {
+        classesContainer.innerHTML = '<p class="text-sm text-gray-500">Загрузка...</p>';
+        subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">...</p>';
+        loadClasses();
+    });}
+    [classesCard, testsCard, daysCard].forEach(card => {
+        if (card) { card.addEventListener('change', loadSubjects); }
+    });
+    loadSubjects();
+    {% if has_results and subject_perf_labels and subject_perf_data %}
+        try {
+            const subjectPerfCtx = document.getElementById('subjectPerformanceChart').getContext('2d');
+            if (subjectPerfCtx) {
+                new Chart(subjectPerfCtx, {
+                    type: 'bar',
+                    data: {
+                        labels: {{ subject_perf_labels|safe }},
+                        datasets: [{ label: 'Успеваемость', data: {{ subject_perf_data|safe }}, backgroundColor: 'rgba(99, 102, 241, 0.8)', borderColor: 'rgba(99, 102, 241, 1)', borderWidth: 1 }]
+                    },
+                    options: {
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+                        plugins: {
+                            legend: { display: false },
+                            datalabels: { anchor: 'end', align: 'end', formatter: (value) => value + '%', color: '#374151', font: { weight: 'bold' } }
+                        },
+                        scales: {
+                            x: { beginAtZero: true, max: 100, ticks: { callback: (value) => value + "%" } },
+                            y: { ticks: { autoSkip: false } }
+                        }
+                    }
+                });
+            }
+        } catch (e) { console.error('Ошибка отрисовки графика по предметам:', e); }
+    {% endif %}
+});
+</script>
+{% endblock %}

@@ -1,0 +1,18 @@
+{# D:\New_GAT\templates\partials\_bulk_add_school_options.html #}
+{# HTMX: Возвращает список школ для выбора #}
+
+{% if schools %}
+    <label class="form-label">2. Выберите одну или несколько школ</label>
+    <div class="p-4 border rounded-lg max-h-60 overflow-y-auto space-y-2">
+        {% for school in schools %}
+        <label class="flex items-center space-x-3 p-2 rounded-md hover:bg-gray-100 cursor-pointer">
+            <input type="checkbox" name="schools" value="{{ school.pk }}" class="form-checkbox h-5 w-5">
+            <span class="text-gray-800">{{ school.name }}</span>
+        </label>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="p-4 text-center text-gray-500 bg-gray-50 rounded-lg">
+        <p>Для выбранного учебного года школы не найдены.</p>
+    </div>
+{% endif %}

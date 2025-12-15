@@ -1,0 +1,25 @@
+{# D:\New_GAT\templates\question_counts\_school_card.html #}
+<div class="data-card p-0 overflow-hidden">
+    <div class="p-4 bg-gray-50 border-b">
+        <h2 class="text-xl font-semibold text-gray-700">{{ school.name }}</h2>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50/50">
+                <tr>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">№</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Предмет</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Кол-во вопросов</th>
+                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Класс</th>
+                    {% if user.is_superuser %}
+                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            {# ✨ ИЗМЕНЕНИЕ: Добавлен ID и используется include #}
+            <tbody id="qc-tbody-{{ school.id }}" class="bg-white divide-y divide-gray-100">
+                {% include "question_counts/partials/_table_rows.html" %}
+            </tbody>
+        </table>
+    </div>
+</div>

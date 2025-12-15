@@ -1,0 +1,9 @@
+{# D:\New_GAT\templates\years\form_success.html #}
+{% extends "components/_base_modal.html" %}
+
+{% block content %}
+<script>
+    // Этот скрипт скажет родительской странице перезагрузиться
+    window.parent.location.reload();
+</script>
+{% endblock %}

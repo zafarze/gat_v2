@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    {% load custom_filters %}
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        @page { 
+            size: A4 landscape;
+            margin: 1cm;
+        }
+        body { 
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            color: #333;
+        }
+        .header { 
+            text-align: center; 
+            margin-bottom: 20px; 
+        }
+        .header h1 { 
+            font-size: 18px;
+            margin: 0; 
+            color: #000;
+        }
+        .header p { 
+            font-size: 12px;
+            margin: 4px 0 0; 
+            color: #555; 
+        }
+        .header strong { 
+            color: #000; 
+        }
+        
+        table { 
+            width: 100%; 
+            border-collapse: collapse; 
+            margin-top: 10px;
+        }
+        th, td { 
+            border: 1px solid #ccc; 
+            padding: 5px;
+            text-align: center; 
+        }
+        thead th { 
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .text-left { 
+            text-align: left; 
+            padding-left: 7px;
+        }
+        tbody tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .total-score-cell {
+            font-weight: bold;
+            background-color: #e2e8f0;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <h1>{{ title|default:"Отчет по оценкам" }}</h1>
+        {% if title_details.schools %}
+            <p><strong>Школа:</strong> {{ title_details.schools }}</p>
+        {% endif %}
+        {% if title_details.classes %}
+            <p><strong>Классы:</strong> {{ title_details.classes }}</p>
+        {% endif %}
+        {% if title_details.period %}
+            <p><strong>Период:</strong> {{ title_details.period }}</p>
+        {% endif %}
+        {% if title_details.test_type %}
+            <p><strong>Тест:</strong> {{ title_details.test_type }}</p>
+        {% endif %}
+    </div>
+
+    {% if table_rows %}
+        <p>Найдено студентов: {{ table_rows|length }}</p>
+    {% endif %}
+    
+    <table>
+        <thead>
+            <tr>
+                <th rowspan="2">№</th>
+                <th rowspan="2" class="text-left">ФИО Студента</th>
+                <th rowspan="2">Класс</th>
+                <th rowspan="2">Тест</th>
+                {% for header in table_headers %}
+                    <th>{{ header.subject.abbreviation|default:header.subject.name }}</th>
+                {% endfor %}
+                <th rowspan="2">Общий балл</th>
+            </tr>
+            <tr>
+                {% for header in table_headers %}
+                    <th style="font-weight: normal; color: #555;">(10 баллов)</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for row in table_rows %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td class="text-left">{{ row.student.last_name_ru }} {{ row.student.first_name_ru }}</td>
+                <td>{{ row.student.school_class.name }}</td>
+                <td>{% if row.is_total %}GAT Total{% else %}{{ row.result_obj.gat_test.name }}{% endif %}</td>
+                
+                {% for header in table_headers %}
+                    <td>
+                        {{ row.grades_by_subject|get_item:header.subject.id|default:"—" }}
+                    </td>
+                {% endfor %}
+
+                <td class="total-score-cell">{{ row.total_score }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="{{ 5|add:table_headers|length }}">Нет данных для отображения.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>

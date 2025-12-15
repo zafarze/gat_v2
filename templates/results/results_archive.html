@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="flex justify-end items-center mb-6">
+    <a href="{% url 'archive_classes' quarter_id=quarter.id school_id=school_class.school.id %}" class="bg-gray-200 text-gray-800 px-4 py-2 rounded-lg hover:bg-gray-300 transition">
+        &larr; Назад к списку классов
+    </a>
+</div>
+
+<p class="text-gray-500 -mt-12 mb-6">Четверть: {{ quarter.name }}</p>
+
+<div class="space-y-4">
+    {% for test in tests %}
+    <div class="border rounded-lg p-4 flex justify-between items-center bg-white shadow-sm hover:shadow-md transition-shadow">
+        <div>
+            <h3 class="font-bold text-lg text-gray-800">{{ test.name }}</h3>
+            <p class="text-sm text-gray-500">
+                Дата: {{ test.test_date|date:"d.m.Y" }} | {{ test.num_results }} {{ test.num_results|pluralize:"результат,результата,результатов" }}
+            </p>
+        </div>
+        
+        <a href="{% url 'detailed_results_list' test.test_number %}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+            Смотреть рейтинг
+        </a>
+    </div>
+    {% empty %}
+    <p class="text-center py-4 text-gray-500">Для этого класса в данной четверти нет тестов с результатами.</p>
+    {% endfor %}
+
+    {% if show_comparison_card %}
+    <div class="border rounded-lg p-4 flex justify-between items-center bg-blue-50 border-blue-200">
+        <div>
+            <h3 class="font-bold text-lg text-blue-800">Сравнение GAT-1 и GAT-2</h3>
+            <p class="text-sm text-blue-600">Посмотреть сводный рейтинг учеников по двум тестам.</p>
+        </div>
+        <a href="{% url 'compare_class_tests' test1_id=test1.id test2_id=test2.id %}" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors">
+            Сравнить
+        </a>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}

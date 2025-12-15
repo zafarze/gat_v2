@@ -1,0 +1,37 @@
+<tbody id="table-body" class="bg-white divide-y divide-gray-200">
+    {% for item in items %}
+    <tr class="hover:bg-gray-50 transition-colors">
+        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">{{ forloop.counter }}</td>
+        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">{{ item.name }}</td>
+        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">{{ item.year.name }}</td>
+        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">{{ item.start_date|date:"d.m.Y" }}</td>
+        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">{{ item.end_date|date:"d.m.Y" }}</td>
+
+        {# ✨ ИЗМЕНЕНИЕ: Оборачиваем всю ячейку действий в условие ✨ #}
+        {% if user.is_superuser %}
+        <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+            <button @click="showModal = true"
+                    hx-get="{% url edit_url item.pk %}"
+                    hx-target="#modal-content"
+                    class="modern-btn secondary small">
+                Редактировать
+            </button>
+            <button @click="showDeleteModal = true;
+                            deleteUrl = '{% url delete_url item.pk %}';
+                            deleteItemName = '{{ item.name|escapejs }}';"
+                    class="modern-btn danger small ml-2">
+                Удалить
+            </button>
+        </td>
+        {% endif %}
+        {# ✨ КОНЕЦ ИЗМЕНЕНИЯ ✨ #}
+    </tr>
+    {% empty %}
+    <tr>
+        {# ✨ ИЗМЕНЕНИЕ: Динамический colspan ✨ #}
+        <td colspan="{% if user.is_superuser %}6{% else %}5{% endif %}" class="px-4 py-12 text-center text-sm text-gray-500">
+            Пока нет ни одной четверти.
+        </td>
+    </tr>
+    {% endfor %}
+</tbody>

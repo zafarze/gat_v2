@@ -1,0 +1,12 @@
+{# D:\New_GAT\templates\gat_tests\_empty_list.html #}
+
+<div class="data-card text-center p-8">
+    <h3 class="text-lg font-semibold text-gray-700">Нет назначенных тестов</h3>
+    <p class="mt-2 text-sm text-gray-500">
+        {% if user.is_superuser %}
+            Нажмите кнопку "Назначить GAT Тест", чтобы создать первый тест.
+        {% else %}
+            Тесты для ваших школ еще не были назначены.
+        {% endif %}
+    </p>
+</div>

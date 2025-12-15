@@ -1,0 +1,33 @@
+{# D:\New_GAT\templates\question_counts\partials\_table_rows.html #}
+
+{% for qc in school.all_question_counts %}
+    <tr class="hover:bg-gray-50 transition-colors">
+        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{{ forloop.counter }}</td>
+        <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-800">{{ qc.subject.name }}</td>
+        <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-600">{{ qc.number_of_questions }}</td>
+        <td class="px-4 py-3 whitespace-nowrap text-sm font-semibold text-gray-700">{{ qc.school_class.name }}</td>
+        {% if user.is_superuser %}
+        <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+            <button @click="showModal = true"
+                    hx-get="{% url 'core:question_count_edit' qc.pk %}"
+                    hx-target="#modal-content"
+                    class="modern-btn secondary small">
+                Редактировать
+            </button>
+            <button @click="showDeleteModal = true;
+                            deleteUrl = '{% url 'core:question_count_delete' qc.pk %}';
+                            deleteItemName = '{{ qc|escapejs }}';
+                            deleteSchoolId = {{ school.id }};"
+                    class="modern-btn danger small ml-2">
+                Удалить
+            </button>
+        </td>
+        {% endif %}
+    </tr>
+{% empty %}
+    <tr>
+        <td colspan="5" class="px-4 py-12 text-center text-sm text-gray-500">
+            Для этой школы пока нет записей.
+        </td>
+    </tr>
+{% endfor %}

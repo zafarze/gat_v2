@@ -1,0 +1,183 @@
+{# D:\New_GAT\templates\components\header.html (ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ) #}
+{% load url_helpers %}
+<header 
+    x-data="{ 
+        profileDropdownOpen: false, 
+        notificationsOpen: false,
+        archiveOpen: false,
+        searchOpen: false,
+        searchQuery: '',
+        searchResults: [],
+        searchLoading: false,
+        unreadCount: 0,
+        notifications: [],
+
+        fetchNotifications() {
+            fetch(`{% url 'core:api_get_notifications' %}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.unreadCount = data.unread_count;
+                    this.notifications = data.notifications;
+                });
+        },
+        
+        markAsRead() {
+            fetch(`{% url 'core:api_mark_notifications_as_read' %}`, {
+                method: 'POST',
+                headers: { 'X-CSRFToken': '{{ csrf_token }}', 'Content-Type': 'application/json' }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') { this.unreadCount = 0; }
+            });
+        },
+        
+        search() {
+            if (this.searchQuery.length < 2) { this.searchResults = []; return; }
+            this.searchLoading = true;
+            fetch(`{% url 'core:api_header_search' %}?q=${this.searchQuery}`)
+                .then(response => response.json())
+                .then(data => {
+                    this.searchResults = data.results;
+                    this.searchLoading = false;
+                });
+        }
+    }" 
+    x-init="() => { fetchNotifications(); setInterval(fetchNotifications, 30000) }"
+    @click.away="profileDropdownOpen = false; notificationsOpen = false; searchOpen = false; archiveOpen = false" 
+    class="bg-white shadow-sm z-20 sticky top-0"
+>
+    <div class="flex items-center justify-between h-16 px-4 sm:px-6 lg:px-8">
+        
+        <div class="flex items-center">
+            {# ✨ ИСПРАВЛЕНИЕ: Добавлен класс 'lg:hidden', чтобы эта кнопка исчезала на больших экранах #}
+            <button @click="isSidebarOpen = true" class="text-gray-500 hover:text-gray-700 focus:outline-none lg:hidden">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+
+            {# Эта кнопка для больших экранов, с ней все в порядке #}
+            <button @click="sidebarCollapsed = !sidebarCollapsed" class="text-gray-500 hover:text-gray-700 focus:outline-none hidden lg:block">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h7" />
+                </svg>
+            </button>
+        </div>
+
+        <div class="flex items-center space-x-2 sm:space-x-4">
+            
+            <div class="relative">
+                <div class="flex items-center">
+                    <div :class="{'w-64 md:w-80': searchOpen}" class="w-10 h-10 transition-all duration-300 ease-in-out flex items-center">
+                        <input x-model="searchQuery" @input.debounce.300ms="search" @focus="searchOpen = true" type="text" placeholder="Поиск..." 
+                               :class="{'opacity-100': searchOpen, 'opacity-0': !searchOpen}"
+                               class="w-full h-full px-4 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-opacity duration-300">
+                    </div>
+                    <button @click="searchOpen = !searchOpen" class="text-gray-500 hover:text-gray-700 p-2 rounded-full focus:outline-none focus:bg-gray-100 -ml-10 z-10">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+                    </button>
+                </div>
+                
+                <div x-show="searchOpen && (searchQuery.length >= 2)" 
+                     x-transition
+                     class="absolute right-0 mt-2 w-64 md:w-80 bg-white rounded-lg shadow-xl py-1 overflow-hidden" style="display: none;">
+                    <ul class="max-h-96 overflow-y-auto">
+                        <template x-if="searchLoading">
+                            <li class="px-4 py-2 text-sm text-gray-500">Загрузка...</li>
+                        </template>
+                        <template x-if="!searchLoading && searchResults.length === 0">
+                            <li class="px-4 py-2 text-sm text-gray-500">Ничего не найдено.</li>
+                        </template>
+                        <template x-for="result in searchResults" :key="result.url">
+                            <li>
+                                <a :href="result.url" class="block px-4 py-2 hover:bg-gray-100">
+                                    <p class="text-sm font-medium text-gray-800" x-text="result.name"></p>
+                                    <p class="text-xs text-indigo-600" x-text="result.type"></p>
+                                </a>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="relative">
+                <button @click="archiveOpen = !archiveOpen" class="text-gray-500 hover:text-gray-700 p-2 rounded-full focus:outline-none focus:bg-gray-100">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                </button>
+                <div x-show="archiveOpen" x-transition class="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl py-1" style="display: none;">
+                    <div class="px-4 py-2 font-bold text-gray-700 border-b">Архив по годам</div>
+                    <ul>
+                        <li>
+                            <a href="?{% query_transform year=None %}" class="block px-4 py-2 text-sm hover:bg-gray-100 {% if not selected_archive_year %} bg-indigo-50 text-indigo-700 font-bold {% else %} text-gray-700 {% endif %}">
+                                Текущий период
+                            </a>
+                        </li>
+                        {% for year in all_archive_years %}
+                        <li>
+                            <a href="?{% query_transform year=year.id %}" class="block px-4 py-2 text-sm hover:bg-gray-100 {% if selected_archive_year.id == year.id %} bg-indigo-50 text-indigo-700 font-bold {% else %} text-gray-700 {% endif %}">
+                                {{ year.name }}
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="relative">
+                <button @click="notificationsOpen = !notificationsOpen; if(unreadCount > 0) markAsRead(); profileDropdownOpen = false" class="text-gray-500 hover:text-gray-700 p-2 rounded-full focus:outline-none focus:bg-gray-100">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>
+                    <span x-show="unreadCount > 0" class="absolute top-0 right-0 flex items-center justify-center h-5 w-5 text-xs font-bold text-white bg-red-600 rounded-full transform -translate-y-1/2 translate-x-1/2 ring-2 ring-white">
+                        <span x-text="unreadCount"></span>
+                    </span>
+                </button>
+                
+                <div x-show="notificationsOpen" x-transition class="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl" style="display: none;">
+                    <div class="px-4 py-2 font-bold text-gray-700 border-b">Уведомления</div>
+                    <ul class="max-h-80 overflow-y-auto">
+                        <template x-if="notifications.length === 0">
+                            <li class="px-4 py-3 text-sm text-gray-500">Нет новых уведомлений</li>
+                        </template>
+                        <template x-for="notif in notifications" :key="notif.id">
+                            <li>
+                                <a :href="notif.link" class="block px-4 py-3 hover:bg-gray-100 border-b">
+                                    <p class="text-sm text-gray-800" x-text="notif.message"></p>
+                                    <p class="text-xs text-gray-400" x-text="notif.time"></p>
+                                </a>
+                            </li>
+                        </template>
+                    </ul>
+                </div>
+            </div>
+
+            {% if user.is_authenticated %}
+            <div class="relative">
+                <button @click="profileDropdownOpen = !profileDropdownOpen; notificationsOpen = false" class="flex items-center focus:outline-none">
+                    {% if user.profile.photo %}
+                        <img class="h-10 w-10 rounded-full object-cover" src="{{ user.profile.photo.url }}" alt="User photo">
+                    {% else %}
+                        <span class="inline-block h-10 w-10 overflow-hidden rounded-full bg-gray-200">
+                            <svg class="h-full w-full text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M24 20.993V24H0v-2.997A14.977 14.977 0 0112.004 15c4.904 0 9.26 2.354 11.996 5.993zM16.002 8.999a4 4 0 11-8 0 4 4 0 018 0z" /></svg>
+                        </span>
+                    {% endif %}
+                </button>
+
+                <div x-show="profileDropdownOpen" x-transition class="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl" style="display: none;">
+                    <div class="px-4 py-3 border-b">
+                        <p class="text-sm font-medium text-gray-900">
+                            {% if user.first_name %}{{ user.first_name }} {{ user.last_name }}{% else %}{{ user.username }}{% endif %}
+                        </p>
+                        <p class="text-sm text-gray-500 truncate">
+                            {{ user.email }}
+                        </p>
+                    </div>
+                    <div class="py-1">
+                        <a href="{% url 'core:profile' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Мой профиль</a>
+                        <a href="{% url 'core:logout' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">Выход</a>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</header>

@@ -1,0 +1,69 @@
+<table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50">
+        <tr>
+            <th class="table-header">Место</th>
+            <th class="table-header">Ф.И.О</th>
+            <th class="table-header">Класс</th> {# <-- Добавлена колонка Класс #}
+            <th class="table-header text-center">Прогресс</th>
+            <th class="table-header text-center">{{ header1|default:"День 1" }}</th>
+            <th class="table-header text-center">{{ header2|default:"День 2" }}</th>
+            <th class="table-header text-center">Общий балл</th>
+        </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-gray-200">
+        {% for data in students_data %}
+        <tr class="hover:bg-gray-50">
+            <td class="table-cell font-bold text-lg text-center">
+                {% if forloop.counter == 1 %}🥇
+                {% elif forloop.counter == 2 %}🥈
+                {% elif forloop.counter == 3 %}🥉
+                {% else %}{{ forloop.counter }}
+                {% endif %}
+            </td>
+            <td class="table-cell font-medium">
+                <a href="{% url 'core:student_progress' data.student.pk %}" class="hover:text-indigo-600 hover:underline">
+                    {# ✨ ИЗМЕНЕНИЕ: Используем full_name_ru #}
+                    {{ data.student.full_name_ru }}
+                </a>
+            </td>
+            {# <-- Новая ячейка для Класса --> #}
+            <td class="table-cell">{{ data.display_class }}</td>
+            <td class="table-cell text-center">
+                {% if data.progress is not None %}
+                    <span class="font-semibold {% if data.progress > 0 %}text-green-600{% elif data.progress < 0 %}text-red-600{% else %}text-gray-500{% endif %}">
+                        {{ data.progress }}
+                    </span>
+                {% else %}
+                    <span class="text-gray-400">—</span>
+                {% endif %}
+            </td>
+            <td class="table-cell text-center {% if data.score1 is None %}text-gray-400{% endif %}">
+                {% if data.result1 %}
+                    <a href="{% url 'core:student_result_detail' data.result1.pk %}" class="hover:text-indigo-600 hover:underline">
+                        {{ data.score1 }}
+                    </a>
+                {% else %}
+                    {{ data.score1|default:"—" }}
+                {% endif %}
+            </td>
+            <td class="table-cell text-center {% if data.score2 is None %}text-gray-400{% endif %}">
+                 {% if data.result2 %}
+                    <a href="{% url 'core:student_result_detail' data.result2.pk %}" class="hover:text-indigo-600 hover:underline">
+                        {{ data.score2 }}
+                    </a>
+                {% else %}
+                    {{ data.score2|default:"—" }}
+                {% endif %}
+            </td>
+            <td class="table-cell text-center font-bold text-indigo-600">
+                {{ data.total_score|default:"—" }}
+            </td>
+        </tr>
+        {% empty %}
+        <tr>
+            {# Увеличиваем colspan до 7 из-за новой колонки #}
+            <td colspan="7" class="text-center py-10 text-gray-500">Нет данных для отображения.</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

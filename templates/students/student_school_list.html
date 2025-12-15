@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+
+{# Жёлтый тестовый блок отсюда убран #}
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">{{ title }}</h1>
+        <p class="text-gray-500 mt-1">Шаг 1 из 4: Выберите школу для просмотра учеников</p>
+    </div>
+    {% if user.is_superuser %}
+    <a href="{% url 'core:student_upload' %}" class="modern-btn secondary">
+        <span>Загрузить учеников</span>
+    </a>
+    {% endif %}
+</div>
+
+<div class="data-card p-6">
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+        {% for school in schools %}
+            <a href="{% url 'core:student_parallel_list' school.id %}" class="block bg-white p-6 rounded-lg shadow-md hover:shadow-xl hover:scale-105 transition-all">
+                <div class="flex justify-between items-start">
+                    <h2 class="text-xl font-bold text-gray-800">{{ school.name }}</h2>
+                    <span class="px-3 py-1 text-sm font-semibold text-gray-600 bg-gray-100 rounded-full">
+                        {{ school.student_count }}
+                    </span>
+                </div>
+                <p class="text-gray-500 mt-2">Перейти к выбору параллели &rarr;</p>
+            </a>
+        {% empty %}
+            <div class="col-span-full text-center py-10">
+                <h3 class="text-lg font-semibold text-gray-700">Школы не найдены</h3>
+                <p class="mt-2 text-gray-500">В системе пока нет школ с учениками, к которым у вас есть доступ.</p>
+                {% if user.is_superuser %}
+                <a href="{% url 'core:student_upload' %}" class="modern-btn primary mt-4">
+                    Загрузить учеников
+                </a>
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,35 @@
+{# D:\New_GAT\templates\question_counts\_schools_for_bulk_add.html #}
+{% load widget_tweaks %}
+
+{# Этот контейнер заменит собой плейсхолдер "Сначала выберите учебный год..." #}
+<div class="space-y-4">
+    <h3 class="text-lg font-semibold text-gray-700 border-b pb-2">2. Выберите школы</h3>
+    
+    {% if form.schools.field.queryset %}
+        {# 
+           Здесь мы добавляем HTMX-атрибуты к контейнеру с чекбоксами.
+           Когда любой чекбокс внутри него меняет состояние (hx-trigger="change"),
+           отправляется GET-запрос для загрузки классов и предметов.
+        #}
+        <div class="p-4 border rounded-lg max-h-60 overflow-y-auto space-y-2"
+             hx-get="{% url 'core:api_load_classes_and_subjects_for_schools' %}"
+             hx-target="#step-3-container"
+             hx-indicator="#loading-indicator"
+             hx-trigger="change from:input[type='checkbox']">
+            
+            {# Рендерим поле с чекбоксами для выбора школ #}
+            {{ form.schools }}
+        </div>
+    {% else %}
+        <div class="form-placeholder">
+            Для выбранного учебного года школы не найдены.
+        </div>
+    {% endif %}
+</div>
+
+{# Важно: Также сразу подготовим контейнер для следующего шага #}
+<div id="step-3-container">
+     <div class="form-placeholder">
+        <span class="arrow">&larr;</span> Затем выберите одну или несколько школ.
+    </div>
+</div>

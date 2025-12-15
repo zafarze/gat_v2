@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+{% block title %}Удалить ученика{% endblock %}
+{% block content %}
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">Подтвердите удаление</h1>
+    <div class="bg-white shadow-md rounded-lg p-8">
+        <p>Вы уверены, что хотите удалить ученика: <strong>{{ object }}</strong>?</p>
+        <form method="post">
+            {% csrf_token %}
+            <div class="mt-8 flex justify-end">
+                {# ИСПРАВЛЕНО: Добавлен namespace 'core' #}
+                <a href="{% url 'core:student_list' object.school_class.id %}" class="modern-btn secondary">Отмена</a>
+                <button type="submit" class="modern-btn danger ml-4">Удалить</button>
+            </div>
+        </form>
+    </div>
+{% endblock %}

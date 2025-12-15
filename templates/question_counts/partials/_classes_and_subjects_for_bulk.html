@@ -1,0 +1,22 @@
+{# D:\New_GAT\templates\question_counts\partials\_classes_and_subjects_for_bulk.html #}
+
+{% if form.school_classes.queryset.exists %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div>
+            <label class="form-label">2. Выберите классы</label>
+            <div class="form-checkbox-container">
+                {{ form.school_classes }}
+            </div>
+        </div>
+        <div>
+            <label class="form-label">3. Выберите предметы</label>
+            <div class="form-checkbox-container">
+                {{ form.subjects }}
+            </div>
+        </div>
+    </div>
+{% else %}
+    <div class="form-placeholder">
+        <span class="arrow">&larr;</span> Сначала выберите одну или несколько школ.
+    </div>
+{% endif %}

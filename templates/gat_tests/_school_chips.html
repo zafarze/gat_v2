@@ -1,0 +1,22 @@
+{# D:\New_GAT\templates\gat_tests\_school_chips.html #}
+
+{% if form.schools.field.choices %}
+    <div class="chip-container">
+        {% for value, text in form.schools.field.choices %}
+            <div class="chip">
+                <input type="checkbox" 
+                       name="{{ form.schools.name }}" 
+                       value="{{ value }}" 
+                       id="school-{{ value }}" 
+                       {% if value in form.schools.value %}checked{% endif %}>
+                <label for="school-{{ value }}">
+                    <span>{{ text }}</span>
+                </label>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="flex items-center justify-center h-full text-center text-gray-500 py-4">
+        <p>Нет доступных школ</p>
+    </div>
+{% endif %}

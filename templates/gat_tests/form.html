@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% load widget_tweaks %} {# 1. Подключаем библиотеку widget_tweaks для стилизации полей #}
+
+{% block content %}
+<div class="page-header">
+    {# Ссылка для возврата к общему списку #}
+    <a href="{% url 'core:question_count_list' %}" class="back-link">&larr; Назад к списку</a>
+    <h1 class="page-title mt-1">{{ title }}</h1>
+</div>
+
+<div class="data-card max-w-4xl mx-auto p-8">
+    <form method="post" class="space-y-8">
+        {% csrf_token %}
+
+        {# --- ШАГ 1: ВЫБОР УЧЕБНОГО ГОДА --- #}
+        <div>
+            <label class="form-label" for="{{ form.academic_year.id_for_label }}">{{ form.academic_year.label }}</label>
+            {#
+               При изменении этого поля (hx-trigger="change"):
+               1. Отправляется GET-запрос на текущий URL (hx-get=request.path).
+               2. Ответ от сервера будет вставлен в контейнер #step-2-container (hx-target).
+               3. Во время загрузки будет показан индикатор #loading-indicator (hx-indicator).
+            #}
+            {% render_field form.academic_year class="form-select" hx-get=request.path hx-target="#step-2-container" hx-trigger="change" hx-indicator="#loading-indicator" %}
+        </div>
+
+        {# --- ШАГ 2: КОНТЕЙНЕР ДЛЯ ВЫБОРА ШКОЛ --- #}
+        {# Этот div является целью для первого HTMX-запроса. Сюда загрузится список школ. #}
+        <div id="step-2-container">
+            <div class="form-placeholder">
+                <span class="arrow">&larr;</span> Сначала выберите учебный год, чтобы загрузить список школ.
+            </div>
+        </div>
+
+        {# --- ШАГ 3: КОНТЕЙНЕР ДЛЯ ВЫБОРА КЛАССОВ И ПРЕДМЕТОВ --- #}
+        {# Этот div будет заполнен после выбора школ. #}
+        <div id="step-3-container">
+             <div class="form-placeholder">
+                <span class="arrow">&larr;</span> Затем выберите одну или несколько школ.
+            </div>
+        </div>
+
+        {# --- ШАГ 4: ВВОД КОЛИЧЕСТВА ВОПРОСОВ --- #}
+        <div>
+            <label class="form-label" for="{{ form.number_of_questions.id_for_label }}">{{ form.number_of_questions.label }}</label>
+            {% render_field form.number_of_questions class="form-input" %}
+        </div>
+
+        {# Индикатор загрузки, который появляется при выполнении HTMX-запросов #}
+        <div id="loading-indicator" class="htmx-indicator text-center text-gray-500 py-4">
+            Загрузка...
+        </div>
+
+        {# Кнопки отправки формы #}
+        <div class="flex justify-end pt-8 border-t">
+            <button type="submit" class="modern-btn primary">
+                Сохранить изменения
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}

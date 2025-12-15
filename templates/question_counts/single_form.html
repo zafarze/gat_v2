@@ -1,0 +1,52 @@
+{% extends 'base.html' %}
+{% load widget_tweaks %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <div class="page-header">
+        <div>
+            <a href="{% url cancel_url %}" class="back-link">&larr; Назад к списку</a>
+            <h1 class="page-title mt-1">{{ title }}</h1>
+        </div>
+    </div>
+
+    <div class="data-card p-8">
+        <form method="post" class="space-y-6">
+            {% csrf_token %}
+            
+            {# 1. Поле Школа (отправляет первый HTMX запрос) #}
+            <div>
+                <label for="{{ form.school.id_for_label }}" class="form-label">{{ form.school.label }}</label>
+                {% render_field form.school %}
+            </div>
+
+            {# 2. Контейнер, который обновляется после выбора школы #}
+            <div id="class-subject-container">
+                <div>
+                    <label for="{{ form.school_class.id_for_label }}" class="form-label">{{ form.school_class.label }}</label>
+                    {% render_field form.school_class %}
+                </div>
+                {# 3. Вложенный контейнер, который обновляется после выбора класса #}
+                <div id="subject-container" class="mt-6">
+                    <label for="{{ form.subject.id_for_label }}" class="form-label">{{ form.subject.label }}</label>
+                    {% render_field form.subject %}
+                </div>
+            </div>
+
+            {# 4. Поле Количество вопросов #}
+            <div class="mt-6">
+                <label for="{{ form.number_of_questions.id_for_label }}" class="form-label">{{ form.number_of_questions.label }}</label>
+                {% render_field form.number_of_questions %}
+            </div>
+
+            <div class="mt-8 border-t pt-6 flex justify-end">
+                <button type="submit" class="modern-btn primary">
+                    Сохранить
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

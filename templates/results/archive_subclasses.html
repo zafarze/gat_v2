@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<a href="{% url 'core:archive_classes' quarter.id school.id %}" class="text-indigo-600 hover:underline mb-4 inline-block">&larr; Назад к параллелям</a>
+
+<h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
+
+<div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+    {# Карточки для каждого подкласса #}
+    {% for subclass in subclasses %}
+        <a href="{% url 'core:class_results_dashboard' quarter.id subclass.id %}" class="block bg-white p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow text-center">
+            <h2 class="text-2xl font-bold text-gray-800">{{ subclass.name }}</h2>
+        </a>
+    {% endfor %}
+
+    {# Специальная карточка для общего отчета #}
+    {% if subclasses %}
+    <a href="{% url 'core:combined_class_report' quarter.id parent_class.id %}"
+       class="block bg-indigo-50 border-indigo-200 p-4 rounded-lg shadow-md hover:shadow-xl transition-shadow text-center">
+        <h2 class="text-2xl font-bold text-indigo-800">{{ parent_class.name }} Общий</h2>
+        <p class="text-sm text-indigo-600 mt-1">Сводный рейтинг</p>
+    </a>
+    {% endif %}
+</div>
+
+{% if not subclasses %}
+<p class="text-gray-500 col-span-full text-center py-10">Нет классов с результатами для отображения в этой параллели.</p>
+{% endif %}
+{% endblock %}

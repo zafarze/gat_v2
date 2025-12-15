@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold text-gray-800">{{ title }}</h1>
+</div>
+
+<div class="space-y-8">
+    <div>
+        <h2 class="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2">Управление доступом Директоров к Школам</h2>
+        <div class="space-y-6">
+            {% for director in directors %}
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-800">{{ director.get_full_name|default:director.username }}</h3>
+                    <div class="pt-5">
+                        <h4 class="text-base font-semibold text-gray-600 mb-4">Доступные школы:</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
+                            {% for school in all_schools %}
+                                <label class="inline-flex items-center cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox"
+                                           class="director-toggle sr-only peer"
+                                           {# --- HTMX Attributes for Director Toggles --- #}
+                                           hx-post="{% url 'core:api_toggle_school_access' %}"
+                                           hx-trigger="change"
+                                           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                                           hx-vals='{"director_id": "{{ director.id }}", "school_id": "{{ school.id }}"}'
+                                           hx-swap="none" {# We don't need to swap HTML, just trigger the action #}
+                                           {# --- End HTMX --- #}
+                                           {% if school in director.profile.schools.all %}checked{% endif %}>
+                                    <div class="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                    <span class="ms-3 text-sm font-medium text-gray-700">{{ school.name }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="text-center py-12 bg-white rounded-lg shadow-sm">
+                    <p class="text-gray-500">В системе не найдено пользователей с ролью "Директор".</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <hr class="my-8 border-gray-200"> {# Added horizontal rule for better separation #}
+
+    <div>
+        <h2 class="text-2xl font-semibold text-gray-700 mb-4 border-b pb-2">Управление доступом Экспертов к Предметам</h2>
+        <div class="space-y-6">
+            {% for expert in experts %}
+                <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-200">
+                    <h3 class="text-xl font-bold text-gray-800">{{ expert.get_full_name|default:expert.username }}</h3>
+                    <div class="pt-5">
+                        <h4 class="text-base font-semibold text-gray-600 mb-4">Доступные предметы:</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-6 gap-y-4">
+                            {% for subject in all_subjects %}
+                                <label class="inline-flex items-center cursor-pointer p-2 rounded-lg hover:bg-gray-50 transition-colors">
+                                    <input type="checkbox"
+                                           class="expert-toggle sr-only peer"
+                                           {# --- HTMX Attributes for Expert Toggles --- #}
+                                           hx-post="{% url 'core:api_toggle_subject_access' %}"
+                                           hx-trigger="change"
+                                           hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'
+                                           hx-vals='{"expert_id": "{{ expert.id }}", "subject_id": "{{ subject.id }}"}'
+                                           hx-swap="none" {# We don't need to swap HTML, just trigger the action #}
+                                           {# --- End HTMX --- #}
+                                           {% if subject in expert.profile.subjects.all %}checked{% endif %}>
+                                    <div class="relative w-11 h-6 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-teal-300 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-600"></div>
+                                    {# ✨ ИСПРАВЛЕНИЕ: Убрано '.school.name' т.к. предметы глобальны #}
+                                    <span class="ms-3 text-sm font-medium text-gray-700">{{ subject.name }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% empty %}
+                <div class="text-center py-12 bg-white rounded-lg shadow-sm">
+                    <p class="text-gray-500">В системе не найдено пользователей с ролью "Эксперт".</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+{% endblock %}

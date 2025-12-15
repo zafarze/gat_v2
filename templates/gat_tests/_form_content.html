@@ -1,0 +1,81 @@
+{% load widget_tweaks %}
+
+<div id="modal-form-content" class="h-full">
+    <form hx-post="{{ request.path }}" 
+          hx-target="#modal-form-content" 
+          hx-swap="outerHTML" 
+          method="post"
+          class="flex flex-col h-full bg-white rounded-xl">
+
+        {% csrf_token %}
+
+        {# ЗАГОЛОВОК (будет зафиксирован вверху) #}
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-2xl font-bold text-gray-800">{{ title }}</h2>
+            <button type="button" @click="showModal = false" class="text-gray-400 hover:text-gray-600">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+
+        {# ОСНОВНОЙ КОНТЕНТ (эта часть будет прокручиваться) #}
+        <div class="p-8 overflow-y-auto flex-1 space-y-6">
+            
+            {% if form.non_field_errors %}
+                <div class="p-3 bg-red-100 text-red-700 rounded-lg">
+                    {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+                </div>
+            {% endif %}
+
+            {# --- Поля формы --- #}
+            <div>
+                <label for="{{ form.name.id_for_label }}" class="modern-label">{{ form.name.label }}</label>
+                {{ form.name }}
+                {% for error in form.name.errors %}<p class="form-error mt-1">{{ error }}</p>{% endfor %}
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label for="{{ form.test_number.id_for_label }}" class="modern-label">{{ form.test_number.label }}</label>
+                    {{ form.test_number }}
+                    {% for error in form.test_number.errors %}<p class="form-error mt-1">{{ error }}</p>{% endfor %}
+                </div>
+                <div>
+                    <label for="{{ form.day.id_for_label }}" class="modern-label">{{ form.day.label }}</label>
+                    {{ form.day }}
+                    {% for error in form.day.errors %}<p class="form-error mt-1">{{ error }}</p>{% endfor %}
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-6">
+                <div>
+                    <label for="{{ form.quarter.id_for_label }}" class="modern-label">{{ form.quarter.label }}</label>
+                    {{ form.quarter }}
+                    {% for error in form.quarter.errors %}<p class="form-error mt-1">{{ error }}</p>{% endfor %}
+                </div>
+                <div>
+                    <label for="{{ form.test_date.id_for_label }}" class="modern-label">{{ form.test_date.label }}</label>
+                    {{ form.test_date }}
+                    {% for error in form.test_date.errors %}<p class="form-error mt-1">{{ error }}</p>{% endfor %}
+                </div>
+            </div>
+             <div>
+                <label for="{{ form.school.id_for_label }}" class="modern-label">{{ form.school.label }}</label>
+                {{ form.school }}
+                {% for error in form.school.errors %}<p class="form-error mt-1">{{ error }}</p>{% endfor %}
+            </div>
+
+            {# Контейнер для динамически загружаемых полей #}
+            <div id="dependent-fields-container">
+                 {% include 'gat_tests/partials/_class_and_subjects_fields.html' %}
+            </div>
+            
+            <div id="modal-loading-indicator" class="htmx-indicator text-center text-gray-500 py-4">Загрузка...</div>
+        </div>
+
+        {# ФУТЕР С КНОПКАМИ (будет зафиксирован внизу) #}
+        <div class="p-6 bg-gray-50 border-t flex justify-end items-center gap-4">
+            <button type="button" @click="showModal = false" class="modern-btn secondary">Отмена</button>
+            <button type="submit" class="modern-btn primary">Сохранить</button>
+        </div>
+    </form>
+</div>

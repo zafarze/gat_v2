@@ -1,0 +1,62 @@
+{% load widget_tweaks %}
+
+<div class="flex flex-col h-full bg-white rounded-xl shadow-2xl max-h-[90vh]">
+    <div id="bulk-modal-content-wrapper" class="flex flex-col h-full">
+        <form hx-post="{% url 'core:question_count_bulk_add' %}" hx-target="#bulk-modal-content-wrapper" hx-swap="outerHTML">
+            {% csrf_token %}
+            <div class="p-6 border-b flex justify-between items-center">
+                <h2 class="text-2xl font-bold text-gray-800">{{ title }}</h2>
+                <button type="button" @click="showModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <div class="p-8 overflow-y-auto space-y-6">
+                
+                {% for error in form.non_field_errors %}
+                    <p class="text-red-500 text-sm">{{ error }}</p>
+                {% endfor %}
+
+                {# ШАГ 1: ВЫБОР ШКОЛ #}
+                <div>
+                    <label class="modern-label">{{ form.schools.label }}</label>
+                    {# ✨ ДОБАВЛЕНЫ HTMX АТРИБУТЫ ✨ #}
+                    {# При изменении любого чекбокса... #}
+                    <div class="p-4 border rounded-lg max-h-48 overflow-y-auto space-y-2 mt-1"
+                         hx-get="{% url 'core:question_count_bulk_add' %}" 
+                         hx-target="#dependent-fields-container"
+                         hx-trigger="change from:input[type='checkbox']"
+                         hx-indicator="#loading-indicator">
+                        
+                        {{ form.schools }}
+                    </div>
+                    {% for error in form.schools.errors %}
+                        <p class="text-red-500 text-sm mt-1">{{ error }}</p>
+                    {% endfor %}
+                </div>
+                
+                {# ШАГ 2: КОНТЕЙНЕР ДЛЯ ЗАВИСИМЫХ ПОЛЕЙ #}
+                {# Сюда будут подгружаться поля "Класс", "Предмет" и "Кол-во" #}
+                <div id="dependent-fields-container">
+                    {# Мы сразу включаем сюда содержимое, чтобы оно было при первой загрузке #}
+                    {% include "question_counts/partials/_bulk_add_dependent_fields.html" %}
+                </div>
+
+                {# Индикатор загрузки #}
+                <div id="loading-indicator" class="htmx-indicator text-center text-gray-500 py-4">
+                    Загрузка...
+                </div>
+
+            </div>
+            
+            <div class="p-6 bg-gray-50 rounded-b-xl border-t flex justify-end items-center gap-4">
+                <button type="button" @click="showModal = false" class="modern-btn secondary">
+                    Отмена
+                </button>
+                <button type="submit" class="modern-btn primary">
+                    Сохранить
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

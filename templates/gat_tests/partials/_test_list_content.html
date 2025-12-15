@@ -1,0 +1,7 @@
+{# D:\New_GAT\templates\gat_tests\partials\_test_list_content.html #}
+{% load widget_tweaks %}
+{% for school, tests in grouped_tests.items %}
+    {% include 'gat_tests/_school_card.html' with school=school tests=tests %}
+{% empty %}
+    {% include 'gat_tests/_empty_list.html' %}
+{% endfor %}

@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
+<div class="bg-white p-8 rounded-lg shadow-md">
+    <p>Эта страница находится в разработке.</p>
+    <p class="mt-4">Здесь будет интерфейс для управления группами и правами пользователей.</p>
+    {# ИСПРАВЛЕНО: Добавлен префикс 'core:' #}
+    <a href="{% url 'core:user_list' %}" class="mt-6 inline-block bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+        Вернуться к списку пользователей
+    </a>
+</div>
+{% endblock %}

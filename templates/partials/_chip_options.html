@@ -1,0 +1,10 @@
+{# D:\New_GAT\templates\partials\_chip_options.html #}
+
+{% for choice in items %}
+    <label class="chip">
+        <input type="checkbox" name="{{ form_field_name }}" value="{{ choice.id }}">
+        <span>{{ choice.name }}</span>
+    </label>
+{% empty %}
+    <p class="text-sm text-gray-500">Нет доступных опций.</p>
+{% endfor %}

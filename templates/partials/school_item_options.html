@@ -1,0 +1,4 @@
+<option value="">{{ placeholder }}</option>
+{% for item in items %}
+    <option value="{{ item.id }}">{{ item.school.name }} - {{ item.name }}</option>
+{% endfor %}

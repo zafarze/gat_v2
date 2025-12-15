@@ -1,0 +1,23 @@
+{# D:\New_GAT\templates\partials\_class_chips.html #}
+
+{% load custom_filters %} {# Убедитесь, что у вас загружен этот тег, если используете его для grouped_classes #}
+
+{% if grouped_classes %}
+    {% for group_name, classes_in_group in grouped_classes.items %}
+        <div class="w-full">
+            <p class="font-semibold text-gray-600 text-sm mt-2 mb-1">{{ group_name }}</p>
+            {% for choice in classes_in_group %}
+                {# Используем ID класса из объекта 'choice' #}
+                {% with class_id_str=choice.id|stringformat:"s" %}
+                    <label class="chip">
+                        <input type="checkbox" name="school_classes" value="{{ choice.id }}"
+                            {% if class_id_str in selected_class_ids %}checked{% endif %}>
+                        <span>{{ choice.name }}</span>
+                    </label>
+                {% endwith %}
+            {% endfor %}
+        </div>
+    {% endfor %}
+{% else %}
+    <p class="text-sm text-gray-500">Нет классов для выбранных школ.</p>
+{% endif %}

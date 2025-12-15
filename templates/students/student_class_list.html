@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+{# ✨ ИЗМЕНЕНИЕ 1: Ссылка "назад" теперь ведет к списку параллелей этой школы #}
+<a href="{% url 'core:student_parallel_list' school.id %}" class="back-link mb-4">&larr; Назад к выбору параллели</a>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">{{ parent_class.name }} классы</h1>
+        <p class="text-gray-500 mt-1">Выберите класс для просмотра учеников</p>
+    </div>
+    <a href="{% url 'core:student_upload' %}" class="modern-btn secondary">
+        <span>Загрузить учеников</span>
+    </a>
+</div>
+
+<div class="data-card p-6">
+    <div class="mb-6">
+        <input type="search"
+               name="q"
+               value="{{ search_query }}"
+               class="form-input"
+               placeholder="Поиск по названию класса..."
+               {# ✨ ИЗМЕНЕНИЕ 2: HTMX теперь отправляет запрос на URL списка классов с ID параллели #}
+               hx-get="{% url 'core:student_class_list' parent_class.id %}"
+               hx-trigger="keyup changed delay:300ms, search"
+               hx-target="#class-list-container"
+               hx-swap="innerHTML">
+    </div>
+
+    <div id="class-list-container">
+        {% include "students/partials/_class_list.html" %}
+    </div>
+</div>
+{% endblock %}

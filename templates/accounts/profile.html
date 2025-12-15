@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+{% load crispy_forms_tags %}
+
+{% block title %}Мой профиль{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto">
+    <h1 class="text-3xl font-bold text-gray-800 mb-8">Мой профиль</h1>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 items-start">
+
+        <div class="lg:col-span-1 bg-white p-6 rounded-lg shadow-md">
+            {# Эта форма теперь содержит поля User и Profile #}
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="update_profile">
+
+                <div class="text-center mb-6">
+                    {# Логика отображения фото остается #}
+                    {% if user.profile and user.profile.photo %}
+                        <img src="{{ user.profile.photo.url }}" alt="Фото профиля" class="w-32 h-32 rounded-full mx-auto object-cover border-4 border-gray-200">
+                    {% else %}
+                        <div class="w-32 h-32 rounded-full mx-auto bg-gray-200 flex items-center justify-center border-4 border-gray-200">
+                            <svg class="w-20 h-20 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        </div>
+                    {% endif %}
+
+                    {# Используем поле photo из profile_form #}
+                    <label for="id_photo" class="mt-4 inline-block bg-gray-100 hover:bg-gray-200 text-sm font-medium py-2 px-4 rounded-lg cursor-pointer transition">
+                        Изменить фото
+                    </label>
+                    <div class="hidden">
+                        {{ profile_form.photo }} {# <-- От profile_form #}
+                    </div>
+                     {# Показываем ошибки для поля фото, если есть #}
+                     {% if profile_form.photo.errors %}
+                         <p class="text-red-500 text-xs italic mt-2">{{ profile_form.photo.errors|join:", " }}</p>
+                     {% endif %}
+                </div>
+
+                <div class="space-y-4">
+                    {# <<<--- ИЗМЕНЕНИЕ: Используем user_edit_form для имени/фамилии ---<<< #}
+                    {{ user_edit_form.first_name|as_crispy_field }}
+                    {{ user_edit_form.last_name|as_crispy_field }}
+                    {# <<<----------------------------------------------------------<<< #}
+                </div>
+
+                <button type="submit" class="mt-6 w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition">
+                    Сохранить данные
+                </button>
+            </form>
+        </div>
+
+        <div class="lg:col-span-2 space-y-8">
+            {# Форма смены пароля остается без изменений #}
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Сменить пароль</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="change_password">
+                    {{ password_form|crispy }}
+                    <button type="submit" class="mt-6 w-full bg-red-600 text-white py-2 rounded-lg hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition">
+                        Изменить пароль
+                    </button>
+                </form>
+            </div>
+
+            {# Форма смены Email остается без изменений #}
+            <div class="bg-white p-6 rounded-lg shadow-md">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Сменить Email</h2>
+                <form method="post">
+                    {% csrf_token %}
+                    <input type="hidden" name="action" value="change_email">
+                    <p class="text-sm text-gray-500 mb-4">Текущий Email: <strong>{{ user.email }}</strong></p>
+                    {{ email_form|crispy }}
+                    <button type="submit" class="mt-6 w-full bg-gray-700 text-white py-2 rounded-lg hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition">
+                        Изменить Email
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

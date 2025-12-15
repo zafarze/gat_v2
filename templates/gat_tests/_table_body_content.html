@@ -1,0 +1,30 @@
+{% for test in tests %}
+<tr class="hover:bg-gray-50 transition-colors">
+    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">{{ test.name }}</td>
+    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">{{ test.quarter.name }}</td>
+    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">{{ test.test_date|date:"d.m.Y" }}</td>
+    {% if user.is_superuser %}
+    <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+        <button @click="showModal = true"
+                hx-get="{% url 'core:gat_test_edit' test.pk %}"
+                hx-target="#modal-content"
+                class="modern-btn secondary small">
+            Редактировать
+        </button>
+        <button @click="showDeleteModal = true;
+                        deleteUrl = '{% url 'core:gat_test_delete' test.pk %}';
+                        deleteItemName = '{{ test.name|escapejs }}';
+                        deleteSchoolId = {{ school.id }};"
+                class="modern-btn danger small ml-2">
+            Удалить тест
+        </button>
+    </td>
+    {% endif %}
+</tr>
+{% empty %}
+<tr>
+    <td colspan="{% if user.is_superuser %}4{% else %}3{% endif %}" class="px-4 py-6 text-center text-sm text-gray-500">
+        Для этой школы нет назначенных тестов.
+    </td>
+</tr>
+{% endfor %}

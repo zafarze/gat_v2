@@ -1,0 +1,23 @@
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+    
+    {# ✨ Карточка для общего списка ✨ #}
+    <a href="{% url 'core:student_list_combined' parent_class.id %}" class="block bg-indigo-50 border-2 border-indigo-500 p-6 rounded-lg shadow-md hover:shadow-xl hover:scale-105 transition-all">
+        <h2 class="text-xl font-bold text-indigo-800">Все {{ parent_class.name }}</h2>
+        <p class="text-indigo-600 mt-2">Общий список всех учеников</p>
+    </a>
+
+    {% for class in classes %}
+        <a href="{% url 'core:student_list' class.id %}" class="block bg-white p-6 rounded-lg shadow-md hover:shadow-xl hover:scale-105 transition-all">
+            <h2 class="text-xl font-bold text-gray-800">Класс "{{ class.name }}"</h2>
+            <p class="text-gray-500 mt-2">{{ class.student_count }} учеников</p>
+        </a>
+    {% empty %}
+        <div class="col-span-full text-center py-10 bg-gray-50 rounded-lg">
+            <h3 class="text-lg font-semibold text-gray-700">Классы не найдены</h3>
+            <p class="mt-2 text-gray-500">В этой школе пока нет классов с учениками.</p>
+            <a href="{% url 'core:student_upload' %}?school_id={{ school.id }}" class="modern-btn primary mt-4">
+                Загрузить учеников
+            </a>
+        </div>
+    {% endfor %}
+</div>

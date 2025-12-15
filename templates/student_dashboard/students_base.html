@@ -1,0 +1,87 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Личный кабинет{% endblock %}</title>
+    <link rel="icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon">
+    <link href="{% static 'css/style.css' %}" rel="stylesheet">
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    {% block head %}{% endblock %}
+</head>
+<body class="bg-gray-100 font-sans">
+    <div class="flex h-screen">
+        {# --- Sidebar --- #}
+        <aside class="w-64 bg-gray-800 text-gray-100 flex flex-col">
+            <div class="p-4 border-b border-gray-700 flex items-center justify-center">
+                 {# Логотип или название #}
+                 <img src="{% static 'img/logo-white.png' %}" alt="Logo" class="h-10">
+            </div>
+            <nav class="flex-1 px-2 py-4 space-y-1">
+                <a href="{% url 'core:student_dashboard' %}" class="flex items-center px-4 py-2.5 rounded-lg hover:bg-gray-700 {% if request.resolver_match.url_name == 'student_dashboard' %}bg-gray-900{% endif %}">
+                    <svg class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/></svg>
+                    <span>Главная</span>
+                </a>
+                <a href="{% url 'core:exam_list' %}" class="flex items-center px-4 py-2.5 rounded-lg hover:bg-gray-700 {% if request.resolver_match.url_name == 'exam_list' or request.resolver_match.url_name == 'exam_review' %}bg-gray-900{% endif %}">
+                    <svg class="h-5 w-5 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
+                    <span>Мои экзамены</span>
+                </a>
+                {# Добавьте другие пункты меню при необходимости #}
+            </nav>
+            <div class="p-4 mt-auto border-t border-gray-700">
+                {# --- ✨ ИСПРАВЛЕНИЕ ЗДЕСЬ ✨ --- #}
+                <a href="{% url 'core:logout' %}" class="flex items-center justify-center px-4 py-2.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium">
+                {# --- ✨ КОНЕЦ ИСПРАВЛЕНИЯ ✨ --- #}
+                    <svg class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                    <span>Выход</span>
+                </a>
+            </div>
+        </aside>
+
+        {# --- Основной контент --- #}
+        <main class="flex-1 overflow-y-auto p-6 md:p-8 lg:p-10">
+            {% block student_content %}{% endblock %}
+        </main>
+    </div>
+
+    {# --- Сообщения Django (как в base.html) --- #}
+    <div
+        x-data="{ show: false, message: '', type: 'success' }"
+        @show-message.window="
+            message = $event.detail.text;
+            type = $event.detail.type;
+            show = true;
+            setTimeout(() => show = false, 8000);
+        "
+        x-show="show"
+        x-transition
+        class="fixed top-5 left-1/2 -translate-x-1/2 z-50 rounded-lg p-4 max-w-md w-full border-l-4"
+        :class="{
+            'bg-green-100 border-green-500 text-green-700': type === 'success',
+            'bg-red-100 border-red-500 text-red-700': type === 'error',
+            'bg-blue-100 border-blue-500 text-blue-700': type === 'info',
+            'bg-yellow-100 border-yellow-500 text-yellow-700': type === 'warning',
+        }"
+        style="display: none;" x-cloak
+    >
+        <p class="font-bold text-center" x-text="message"></p>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        {% if messages %}
+            {% for message in messages %}
+                window.dispatchEvent(new CustomEvent('show-message', {
+                    detail: {
+                        text: '{{ message|escapejs }}',
+                        type: '{{ message.tags }}'
+                    }
+                }));
+            {% endfor %}
+        {% endif %}
+    });
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

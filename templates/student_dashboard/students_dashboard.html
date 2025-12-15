@@ -1,0 +1,188 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Моя панель{% endblock %}
+
+{% block content %}
+    {# --- БЛОК 1: ПРИВЕТСТВИЕ (С ИСПРАВЛЕННЫМ ЦВЕТОМ ТЕКСТА) --- #}
+    <div class="bg-indigo-700 text-white p-8 rounded-2xl shadow-lg mb-8 bg-cover bg-center" style="background-image: url('{% static 'images/dashboard-bg.svg' %}');">
+        <h1 class="text-4xl font-bold text-white">Добро пожаловать, {{ student.first_name_ru|capfirst }}!</h1>
+        <p class="mt-2 text-indigo-200">Здесь ты можешь следить за своими результатами и достижениями.</p>
+    </div>
+
+    {% if has_results %}
+        
+        {# --- БЛОК 2: ОБНОВЛЕННЫЕ KPI-КАРТОЧКИ --- #}
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Результаты последнего теста: <span class="text-indigo-600">{{ latest_result.result.gat_test.name }}</span></h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white p-6 rounded-xl shadow-md flex items-center space-x-4">
+                <div class="bg-purple-100 p-3 rounded-full"><svg class="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg></div>
+                <div>
+                    <p class="text-gray-500 text-sm">Место в классе</p>
+                    <p class="text-2xl font-bold text-gray-800">{{ latest_result.class_rank|default:"-" }} <span class="text-lg font-medium text-gray-400">/ {{ latest_result.class_total|default:"-" }}</span></p>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-md flex items-center space-x-4">
+                <div class="bg-blue-100 p-3 rounded-full"><svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg></div>
+                <div>
+                    <p class="text-gray-500 text-sm">Место в школе</p>
+                    <p class="text-2xl font-bold text-gray-800">{{ latest_result.school_rank|default:"-" }} <span class="text-lg font-medium text-gray-400">/ {{ latest_result.school_total|default:"-" }}</span></p>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-md flex items-center space-x-4">
+                <div class="bg-green-100 p-3 rounded-full"><svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg></div>
+                <div>
+                    <p class="text-gray-500 text-sm">Лучший предмет</p>
+                    <p class="text-xl font-bold text-gray-800">{{ latest_result.best_subject.name|default:"-" }} <span class="font-semibold text-green-600">({{ latest_result.best_subject.perf|floatformat:0 }}%)</span></p>
+                </div>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-md flex items-center space-x-4">
+                <div class="bg-red-100 p-3 rounded-full"><svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg></div>
+                <div>
+                    <p class="text-gray-500 text-sm">Зона роста</p>
+                    <p class="text-xl font-bold text-gray-800">{{ latest_result.worst_subject.name|default:"-" }} <span class="font-semibold text-red-600">({{ latest_result.worst_subject.perf|floatformat:0 }}%)</span></p>
+                </div>
+            </div>
+        </div>
+
+        {# --- БЛОК 3: ГРАФИК ДИНАМИКИ УСПЕВАЕМОСТИ --- #}
+        <div class="bg-white p-6 rounded-xl shadow-md mb-8">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Динамика успеваемости</h2>
+            <div class="h-80">
+                <canvas id="progressChart"></canvas>
+            </div>
+        </div>
+
+        {# --- БЛОК 4: ИСТОРИЯ ЭКЗАМЕНОВ С ДЕТАЛИЗАЦИЕЙ --- #}
+        <div class="bg-white p-6 rounded-xl shadow-md">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">История экзаменов</h2>
+            <div class="space-y-2">
+            {% for item in history %}
+                <div x-data="{ open: false }" class="border-t">
+                    <div @click="open = !open" class="flex justify-between items-center py-4 px-2 cursor-pointer hover:bg-gray-50 rounded-lg">
+                        <div class="w-2/5">
+                            <p class="font-bold text-gray-800">{{ item.result.gat_test.name }}</p>
+                            <p class="text-sm text-gray-500">{{ item.result.gat_test.test_date|date:"d.m.Y" }}</p>
+                        </div>
+                        <div class="w-1/5 text-center">
+                            <p class="text-lg font-bold text-indigo-600">{{ item.result.total_score }}</p>
+                            <p class="text-xs text-gray-500">Общий балл</p>
+                        </div>
+                        <div class="w-1/5 text-center">
+                            <p class="text-lg font-bold text-blue-600">{{ item.class_rank }}/{{ item.class_total }}</p>
+                            <p class="text-xs text-gray-500">Место в классе</p>
+                        </div>
+                        <div class="w-1/5 text-right">
+                             <button class="text-gray-400 transform transition-transform" :class="{'rotate-90': open}">
+                                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                             </button>
+                        </div>
+                    </div>
+                    <div x-show="open" x-transition class="bg-gray-50 p-4 rounded-b-lg -mt-2">
+                        <h4 class="font-bold mb-3 text-gray-700">Разбор по предметам:</h4>
+                        <div class="space-y-4">
+                            {% for score in item.processed_scores %}
+                                <div>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="font-semibold text-gray-800">{{ score.subject }}</span>
+                                        <div class="flex items-center space-x-3 text-sm">
+                                            <span class="font-bold text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded">{{ score.correct }}/{{ score.total }}</span>
+                                            {% if score.incorrect > 0 %}
+                                            <span class="text-red-600 font-semibold">✗ {{ score.incorrect }}</span>
+                                            {% endif %}
+                                            <span class="text-gray-500 font-bold">{{ score.percentage }}%</span>
+                                        </div>
+                                    </div>
+                                    <div class="flex flex-wrap items-center gap-1">
+                                        
+                                        {# --- ✨ ИСПРАВЛЕНИЕ ЗДЕСЬ (ДВОЙНОЕ) ✨ --- #}
+                                        {% for answer in score.answers %}
+                                            <span class="h-5 w-5 rounded-full flex items-center justify-center text-xs font-bold text-white 
+                                                  {% if answer.1 %}bg-green-500{% else %}bg-red-500{% endif %}">
+                                               {{ answer.0 }}
+                                            </span>
+                                        {% endfor %}
+                                        {# --- ✨ КОНЕЦ ИСПРАВЛЕНИЯ ✨ --- #}
+                                    
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            {% endfor %}
+            </div>
+        </div>
+
+    {% else %}
+        <div class="text-center bg-white p-12 rounded-xl shadow-md">
+            <h2 class="text-2xl font-bold text-gray-800">Результатов пока нет</h2>
+            <p class="mt-2 text-gray-500">Как только ты сдашь свой первый тест, вся аналитика появится на этой странице.</p>
+        </div>
+    {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+    {% if has_results %}
+    const progressCtx = document.getElementById('progressChart').getContext('2d');
+    const gradient = progressCtx.createLinearGradient(0, 0, 0, 320);
+    gradient.addColorStop(0, 'rgba(79, 70, 229, 0.5)');
+    gradient.addColorStop(1, 'rgba(79, 70, 229, 0)');
+
+    new Chart(progressCtx, {
+    type: 'line',
+    data: {
+        labels: {{ chart_labels|safe }},
+        datasets: [{
+            label: 'Общий балл',
+            data: {{ chart_data|safe }},
+            borderColor: 'rgba(79, 70, 229, 1)',
+            backgroundColor: gradient,
+            borderWidth: 3,
+            pointBackgroundColor: 'rgba(79, 70, 229, 1)',
+            pointRadius: 5,
+            pointHoverRadius: 7,
+            tension: 0.3,
+            fill: true,
+        }]
+    },
+    // Вот здесь находится полный объект настроек
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+            legend: {
+                display: false
+            },
+            tooltip: {
+                displayColors: false,
+                callbacks: {
+                    label: function(context) {
+                        return 'Общий балл: ' + context.parsed.y;
+                    }
+                }
+            }
+        },
+        scales: {
+            y: {
+                beginAtZero: true,
+                grid: {
+                    drawBorder: false,
+                }
+            },
+            x: {
+                grid: {
+                    display: false
+                }
+            }
+        }
+    }
+});
+    {% endif %}
+});
+</script>
+{% endblock %}

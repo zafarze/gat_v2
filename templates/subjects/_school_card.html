@@ -1,0 +1,57 @@
+<div id="school-card-{{ school.id }}" class="data-card p-6">
+    <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold text-gray-800">{{ school.name }}</h2>
+        <button @click="showModal = true"
+                hx-get="{% url 'core:subject_add' %}?school={{ school.pk }}"
+                hx-target="#modal-content"
+                class="modern-btn primary small flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+            <span>Добавить предмет</span>
+        </button>
+    </div>
+
+    <div class="border border-gray-200 rounded-lg overflow-x-auto">
+        <table class="min-w-full">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="table-header">Название</th>
+                    <th class="table-header">Сокращение</th>
+                    {% if user.is_superuser %}
+                    <th class="table-header text-right">Действия</th>
+                    {% endif %}
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for subject in school.subjects.all %}
+                <tr class="hover:bg-gray-50 transition-colors">
+                    <td class="table-cell font-medium text-gray-900">{{ subject.name }}</td>
+                    <td class="table-cell text-gray-700">{{ subject.abbreviation|default:"—" }}</td>
+                    {% if user.is_superuser %}
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                        <button @click="showModal = true"
+                                hx-get="{% url 'core:subject_edit' subject.pk %}"
+                                hx-target="#modal-content"
+                                class="modern-btn secondary small">
+                            Редактировать
+                        </button>
+                        <button @click="showDeleteModal = true;
+                                        deleteUrl = '{% url 'core:subject_delete' subject.pk %}';
+                                        deleteItemName = '{{ subject.name|escapejs }}';
+                                        deleteSchoolId = {{ school.id }};"
+                                class="modern-btn danger small ml-2">
+                            Удалить
+                        </button>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="{% if user.is_superuser %}3{% else %}2{% endif %}" class="px-4 py-6 text-center text-sm text-gray-500">
+                        В этой школе пока нет предметов.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>

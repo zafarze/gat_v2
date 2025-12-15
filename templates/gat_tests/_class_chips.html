@@ -1,0 +1,18 @@
+{# D:\New_GAT\templates\gat_tests\_class_chips.html #}
+
+{% if form.school_class.field.choices %} {# <-- ИЗМЕНЕНО #}
+    <div class="chip-container">
+        {% for value, text in form.school_class.field.choices %} {# <-- ИЗМЕНЕНО #}
+            <div class="chip">
+                <input type="checkbox" name="{{ form.school_class.name }}" value="{{ value.value }}" id="class-{{ value.value }}" {% if value.value in form.school_class.value %}checked{% endif %}> {# <-- ИЗМЕНЕНО (3 раза) #}
+                <label for="class-{{ value.value }}">
+                    <span>{{ text }}</span>
+                </label>
+            </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <div class="flex items-center justify-center h-full text-center text-gray-500 py-4">
+        <p>В выбранных школах нет классов</p>
+    </div>
+{% endif %}

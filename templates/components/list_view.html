@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{# --- Заполняем блоки из base.html --- #}
+{% block title %}{{ title }}{% endblock %}
+{% block page_title %}{{ title }}{% endblock %} {# Дублируем для совместимости, если нужно #}
+
+{% block breadcrumbs %}
+    {% if list_url %}
+        <a href="{% url list_url %}" class="text-indigo-600 hover:underline mb-2 inline-block">&larr; Назад</a>
+    {% endif %}
+{% endblock %}
+
+{% block page_actions %}
+    {% if add_url %}
+    <a href="{% url add_url %}" class="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 transition-colors">
+        + {% block add_button_text %}Добавить{% endblock %}
+    </a>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="bg-white shadow-md rounded-lg overflow-x-auto">
+    <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+            <tr>
+                {% block table_headers %}{% endblock %}
+                <th scope="col" class="relative px-6 py-3">
+                    <span class="sr-only">Действия</span>
+                </th>
+            </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+            {% for item in items %}
+            <tr>
+                {% block table_row %}{% endblock %}
+                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-4">
+                    {% if edit_url %}<a href="{% url edit_url item.pk %}" class="text-indigo-600 hover:text-indigo-900">Редактировать</a>{% endif %}
+                    {% if delete_url %}<a href="{% url delete_url item.pk %}" class="text-red-600 hover:text-red-900">Удалить</a>{% endif %}
+                </td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="100%" class="text-center py-4 text-gray-500">
+                    {% block empty_list_text %}Нет данных для отображения.{% endblock %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

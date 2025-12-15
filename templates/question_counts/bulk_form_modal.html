@@ -1,0 +1,40 @@
+{% load widget_tweaks %}
+
+<div class="flex flex-col h-full bg-white rounded-xl shadow-2xl max-h-[90vh]">
+    <div id="bulk-modal-content-wrapper" class="flex flex-col h-full">
+        <form hx-post="{% url 'core:question_count_bulk_add' %}" hx-target="#bulk-modal-content-wrapper" hx-swap="outerHTML">
+            {% csrf_token %}
+
+            <div class="p-6 border-b flex justify-between items-center">
+                <h2 class="text-2xl font-bold text-gray-800">{{ title }}</h2>
+                <button type="button" @click="showModal = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <div class="p-8 overflow-y-auto space-y-6">
+                <p class="text-sm text-gray-500">Заполните поля по шагам для массового добавления количества вопросов.</p>
+
+                {# ШАГ 1: ВЫБОР ГОДА #}
+                <div>
+                    <label class="form-label" for="{{ form.academic_year.id_for_label }}">1. {{ form.academic_year.label }}</label>
+                    {% render_field form.academic_year class="form-select" hx-get=request.path hx-target="#modal-step-2-container" hx-indicator="#modal-loading-indicator" %}
+                </div>
+
+                {# ШАГ 2: КОНТЕЙНЕР ДЛЯ ШКОЛ #}
+                <div id="modal-step-2-container"></div>
+
+                {# ШАГ 3: КОНТЕЙНЕР ДЛЯ ОСТАЛЬНЫХ ПОЛЕЙ #}
+                <div id="modal-step-3-container"></div>
+                
+                {# Индикатор загрузки #}
+                <div id="modal-loading-indicator" class="htmx-indicator text-center text-gray-500 py-4">Загрузка...</div>
+            </div>
+            
+            <div class="p-6 bg-gray-50 rounded-b-xl border-t flex justify-end items-center gap-4">
+                <button type="button" @click="showModal = false" class="modern-btn secondary">Отмена</button>
+                <button type="submit" class="modern-btn primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>

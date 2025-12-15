@@ -1,0 +1,368 @@
+{% extends 'base.html' %}
+{% load static %}
+{% load custom_filters %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block head %}
+{# Используем CSS от статистики #}
+<link rel="stylesheet" href="{% static 'css/deep_analysis.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    <h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
+
+    {# --- ✨ НОВАЯ ФОРМА ФИЛЬТРОВ (как в Статистике) --- #}
+    
+    {# ✨ ИСПРАВЛЕНИЕ 1: Уменьшен border-radius с 'rounded-2xl' до 'rounded-lg' (8px) #}
+    <div class="glass-card p-6 rounded-lg mb-8">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">Фильтры</h2>
+        <form method="get" id="analysis-form"> {# Изменен ID формы #}
+            
+            {# ✨ ИСПРАВЛЕНИЕ 2: Убран 'xl:grid-cols-6', чтобы на больших экранах было 3 колонки (lg:grid-cols-3) #}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+
+                <div class="filter-card" data-filter="quarters">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.quarters.label }}</label>
+                    {# ✨ ИСПРАВЛЕНИЕ 3: Добавлен 'items-center' для центрирования чипов #}
+                    <div class="chip-container items-center">
+                        {% for choice in form.quarters %}
+                            <label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="filter-card" data-filter="schools">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.schools.label }}</label>
+                    {# ✨ ИСПРАВЛЕНИЕ 3: Добавлен 'items-center' для центрирования чипов #}
+                    <div class="chip-container items-center">
+                        {% for choice in form.schools %}
+                            <label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="filter-card" id="classes-filter-card" data-filter="school_classes">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.school_classes.label }}</label>
+                    {# ✨ ИСПРАВЛЕНИЕ 3: Добавлен 'items-center' для центрирования чипов #}
+                    <div id="classes-chip-container" class="chip-container items-center">
+                        {% if grouped_classes %}
+                            {% for group_name, classes_in_group in grouped_classes.items %}
+                                <div class="w-full">
+                                    <p class="font-semibold text-gray-600 text-sm mt-2 mb-1">{{ group_name }}</p>
+                                    {% for choice in classes_in_group %}
+                                        <label class="chip">
+                                            <input type="checkbox" name="school_classes" value="{{ choice.id }}"
+                                                {% if choice.id|stringformat:"s" in selected_class_ids %}checked{% endif %}>
+                                            <span>{{ choice.name }}</span>
+                                        </label>
+                                    {% endfor %}
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-sm text-gray-500">Сначала выберите школу.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="filter-card" data-filter="test_numbers">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.test_numbers.label }}</label>
+                    {# ✨ ИСПРАВЛЕНИЕ 3: Добавлен 'items-center' для центрирования чипов #}
+                    <div class="chip-container items-center">
+                        {% for choice in form.test_numbers %}
+                            <label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="filter-card" data-filter="days">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.days.label }}</label>
+                    {# ✨ ИСПРАВЛЕНИЕ 3: Добавлен 'items-center' для центрирования чипов #}
+                    <div class="chip-container items-center">
+                        {% for choice in form.days %}
+                            <label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="filter-card" id="subjects-filter-card" data-filter="subjects">
+                    <label class="font-bold text-gray-700 text-lg">{{ form.subjects.label }}</label>
+                    {# ✨ ИСПРАВЛЕНИЕ 3: Добавлен 'items-center' для центрирования чипов #}
+                    <div id="subjects-chip-container" class="chip-container items-center">
+                        <p class="text-sm text-gray-500">...</p> {# Загрузится через JS #}
+                    </div>
+                </div>
+
+            </div>
+            <div class="mt-8 border-t pt-6 flex justify-end">
+                <button type="submit" class="btn btn-primary px-10 py-3 text-lg">
+                    Применить
+                </button>
+            </div>
+        </form>
+    </div>
+    {# --- Конец новой формы фильтров --- #}
+
+    {% if has_results %}
+        <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            {# --- ГРАФИК --- #}
+            <div class="bg-white p-6 rounded-lg shadow flex flex-col">
+                <h2 class="text-xl font-bold text-gray-800 mb-4">Сравнение успеваемости классов по предметам</h2>
+                
+                {# ✨ ИСПРАВЛЕНИЕ 2: Обертка, которая задает высоту для canvas #}
+                {# 'relative' - обязательно для Chart.js #}
+                {# 'flex-grow' - займет все оставшееся место в карточке #}
+                {# 'min-h-[450px]' - минимальная высота, если таблица справа окажется короткой #}
+                <div class="relative flex-grow min-h-[450px]">
+                    <canvas id="comparisonChart"></canvas>
+                </div>
+            </div>
+
+            {# --- ТАБЛИЦА С ИТОГАМИ И РАНГАМИ ПРЕДМЕТОВ --- #}
+            <div class="bg-white shadow-md rounded-lg overflow-x-auto">
+                <h2 class="text-xl font-bold text-gray-800 p-6">Детальные данные (% правильных ответов)</h2>
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase sticky left-0 bg-gray-50 z-10">Предмет</th>
+                            {% for class_name in table_headers %}
+                                <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">{{ class_name }}</th>
+                            {% endfor %}
+                            <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase border-l-2 bg-gray-100 sticky right-0 z-10">Итог</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for subject_name, class_scores in table_data.items %} {# Используем отсортированные данные из view #}
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-900 sticky left-0 bg-white z-10">
+                                <span class="font-bold text-gray-500 mr-2">{{ subject_ranks|get_item:subject_name }}.</span>
+                                {{ subject_name }}
+                            </td>
+
+                            {% for class_name in table_headers %}
+                                <td class="px-6 py-4 whitespace-nowrap text-center">
+                                    <span class="font-bold text-base text-gray-700">
+                                        {{ class_scores|get_item:class_name|default:"—" }}%
+                                    </span>
+                                </td>
+                            {% endfor %}
+
+                            <td class="px-6 py-4 whitespace-nowrap text-center font-bold bg-gray-100 border-l-2 sticky right-0 z-10">
+                                {{ subject_averages|get_item:subject_name }}%
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% else %}
+        {# --- Сообщения об отсутствии результатов (как в Статистике) --- #}
+        {% if request.GET %} {# Показываем только если форма была отправлена #}
+            <div class="bg-yellow-100 text-yellow-800 p-6 rounded-lg shadow text-center">
+                <h3 class="font-bold text-lg">Результаты не найдены</h3>
+                <p>По вашему запросу нет данных. Попробуйте выбрать другие фильтры.</p>
+            </div>
+        {% else %}
+             <div class="bg-blue-100 text-blue-800 p-6 rounded-lg shadow text-center">
+                <h3 class="font-bold text-lg">Начните анализ</h3>
+                <p>Выберите параметры в фильтре выше и нажмите "Применить".</p>
+            </div>
+        {% endif %}
+    {% endif %}
+
+</div> {# --- Конец max-w-7xl --- #}
+
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{# --- ✨ ИСПРАВЛЕННЫЙ JAVASCRIPT --- #}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const form = document.getElementById('analysis-form');
+    if (!form) return;
+
+    // --- Контейнеры фильтров ---
+    const schoolsCard = form.querySelector('[data-filter="schools"]');
+    const classesCard = form.querySelector('[data-filter="school_classes"]');
+    const testsCard = form.querySelector('[data-filter="test_numbers"]');
+    const daysCard = form.querySelector('[data-filter="days"]');
+
+    // --- Контейнеры для чипов ---
+    const classesContainer = document.getElementById('classes-chip-container');
+    const subjectsContainer = document.getElementById('subjects-chip-container');
+
+    // --- URL-адреса для API ---
+    const classesApiUrl = "{% url 'core:api_load_classes_as_chips' %}";
+    const subjectsApiUrl = "{% url 'core:api_load_subjects_for_filters' %}";
+
+    // --- ✨ ИЗМЕНЕНИЕ: Получаем ID из JSON, переданного из Django view ---
+    // Преобразуем строковые ID в числа для сравнения
+    const selectedClassIds = {{ selected_class_ids_json|safe }}.map(String);
+    const selectedSubjectIds = {{ selected_subject_ids_json|safe }}.map(String);
+
+    function getSelectedValues(card) {
+        if (!card) return [];
+        // Используем .value для получения строковых ID
+        return Array.from(card.querySelectorAll('input:checked')).map(cb => cb.value);
+    }
+
+    // --- Загрузка КЛАССОВ (fetch изменен для передачи выбранных классов) ---
+    const loadClasses = () => {
+        const school_ids = getSelectedValues(schoolsCard);
+        if (school_ids.length === 0) {
+            classesContainer.innerHTML = '<p class="text-sm text-gray-500">Сначала выберите школу.</p>';
+            // Вызываем loadSubjects, чтобы очистить их тоже
+            loadSubjects();
+            return;
+        }
+
+        const params = new URLSearchParams();
+        school_ids.forEach(id => params.append('schools', id));
+        // ✨ ДОБАВИТЬ: Передаем уже выбранные классы, чтобы API мог их отметить
+        selectedClassIds.forEach(id => params.append('school_classes', id));
+        const url = `${classesApiUrl}?${params.toString()}`;
+
+        fetch(url)
+            .then(response => {
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                return response.text();
+            })
+            .then(html => {
+                classesContainer.innerHTML = html;
+                // ✨ Важно: Вызываем loadSubjects ПОСЛЕ успешной загрузки классов
+                loadSubjects();
+            })
+            .catch(error => {
+                console.error('Ошибка при загрузке классов:', error);
+                classesContainer.innerHTML = '<p class="text-sm text-red-500">Не удалось загрузить классы.</p>';
+                // Все равно пытаемся загрузить предметы
+                loadSubjects();
+            });
+    };
+
+    // --- Загрузка ПРЕДМЕТОВ (без существенных изменений, только проверка selectedSubjectIds) ---
+    const loadSubjects = () => {
+        const school_ids = getSelectedValues(schoolsCard);
+        let class_ids = getSelectedValues(classesCard);
+        // Если чекбоксы еще не отмечены, но классы есть, берем их ID
+        if (class_ids.length === 0 && classesContainer.querySelector('input[name="school_classes"]')) {
+             class_ids = Array.from(classesContainer.querySelectorAll('input[name="school_classes"]'))
+                              .map(inp => inp.value);
+        }
+        const test_numbers = getSelectedValues(testsCard);
+        const days = getSelectedValues(daysCard);
+
+        if (school_ids.length === 0 || class_ids.length === 0 || test_numbers.length === 0) {
+            subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">Выберите школу, класс и тест.</p>';
+            return;
+        }
+
+        const params = new URLSearchParams();
+        school_ids.forEach(id => params.append('school_ids[]', id));
+        class_ids.forEach(id => params.append('class_ids[]', id));
+        test_numbers.forEach(id => params.append('test_numbers[]', id));
+        days.forEach(id => params.append('days[]', id));
+
+        const url = `${subjectsApiUrl}?${params.toString()}`;
+
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                subjectsContainer.innerHTML = '';
+                if (data.subjects && data.subjects.length > 0) {
+                    data.subjects.forEach(subject => {
+                        // ✨ ИЗМЕНЕНИЕ: Сравниваем строковые ID
+                        const isChecked = selectedSubjectIds.includes(String(subject.id)) ? 'checked' : '';
+                        const label = document.createElement('label');
+                        label.className = 'chip';
+                        label.innerHTML = `<input type="checkbox" name="subjects" value="${subject.id}" ${isChecked}><span>${subject.name}</span>`;
+                        subjectsContainer.appendChild(label);
+                    });
+                } else {
+                    subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">Нет предметов для этих фильтров.</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Ошибка при загрузке предметов:', error);
+                subjectsContainer.innerHTML = '<p class="text-sm text-red-500">Не удалось загрузить предметы.</p>';
+            });
+    };
+
+    // --- Отмечаем статичные фильтры при загрузке (остается) ---
+    ['quarters', 'schools', 'test_numbers', 'days'].forEach(filterName => {
+        const card = form.querySelector(`[data-filter="${filterName}"]`);
+        if (!card) return;
+        const paramValues = new URLSearchParams(window.location.search).getAll(filterName);
+        if (paramValues.length > 0) {
+            card.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+                if (paramValues.includes(cb.value)) {
+                    cb.checked = true;
+                }
+            });
+        }
+    });
+
+    // --- "Слушатели" событий (остаются) ---
+    if (schoolsCard) {
+        schoolsCard.addEventListener('change', () => {
+            // При смене школы очищаем классы и предметы и заново грузим
+            classesContainer.innerHTML = '<p class="text-sm text-gray-500">Загрузка...</p>';
+            subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">...</p>';
+            loadClasses(); // loadClasses вызовет loadSubjects после завершения
+        });
+    }
+    // Изменение КЛАССОВ, ТЕСТОВ, ДНЕЙ -> запускает ТОЛЬКО loadSubjects
+    [classesCard, testsCard, daysCard].forEach(card => {
+        if (card) {
+            card.addEventListener('change', loadSubjects);
+        }
+    });
+
+    // --- ✨ ИСПРАВЛЕННАЯ Первичная загрузка ---
+    // Классы уже отрисованы на сервере, если школы выбраны.
+    // Нам нужно только вызвать loadSubjects, чтобы загрузить предметы.
+    // Если школы не выбраны, loadSubjects покажет плейсхолдер.
+    loadSubjects();
+
+
+    {# --- Отрисовка ГРАФИКА (остается) --- #}
+    {% if has_results %}
+        const ctx = document.getElementById('comparisonChart').getContext('2d');
+        const labels = {{ chart_labels|safe }};
+        const datasets = {{ chart_datasets|safe }};
+        const colorPalette = ['rgba(59, 130, 246, 0.8)','rgba(239, 68, 68, 0.8)','rgba(16, 185, 129, 0.8)','rgba(245, 158, 11, 0.8)','rgba(139, 92, 246, 0.8)','rgba(236, 72, 153, 0.8)'];
+
+        datasets.forEach((dataset, index) => {
+            dataset.backgroundColor = colorPalette[index % colorPalette.length];
+        });
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: { labels: labels, datasets: datasets },
+            options: {
+                responsive: true, maintainAspectRatio: false, indexAxis: 'x',
+                scales: {
+                    y: { beginAtZero: true, max: 100, title: { display: true, text: '% правильных ответов' }},
+                    x: { title: { display: false } }
+                },
+                plugins: {
+                    legend: { position: 'top' },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                let label = context.dataset.label || '';
+                                if (label) label += ': ';
+                                if (context.parsed.y !== null) label += context.parsed.y + '%';
+                                return label;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    {% endif %}
+});
+</script>
+
+{% endblock %}

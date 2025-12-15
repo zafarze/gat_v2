@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mx-auto mt-8">
+    <div class="bg-white p-8 rounded-lg shadow-md max-w-xl mx-auto text-center">
+        <h2 class="text-2xl font-bold mb-4 text-gray-800">Подтвердите удаление</h2>
+        <p class="mb-6 text-gray-600">Вы уверены, что хотите удалить эту заметку?</p>
+        
+        <blockquote class="border-l-4 border-gray-300 pl-4 text-left italic my-4 bg-gray-50 p-4">
+            "{{ object.note }}"
+        </blockquote>
+
+        <form method="post">
+            {% csrf_token %}
+            <div class="mt-6 flex items-center justify-center gap-x-6">
+                <a href="{% url 'student_progress' object.student.pk %}" class="text-sm font-semibold leading-6 text-gray-900">Отмена</a>
+                <button type="submit" class="rounded-md bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500">
+                    Да, удалить
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

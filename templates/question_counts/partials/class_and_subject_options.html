@@ -1,0 +1,12 @@
+{% load widget_tweaks %}
+
+<div>
+    <label for="{{ form.school_class.id_for_label }}" class="form-label">{{ form.school_class.label }}</label>
+    {% render_field form.school_class %}
+</div>
+
+{# Этот контейнер нужен, чтобы следующий HTMX-запрос обновил только предметы #}
+<div id="subject-container" class="mt-6">
+    <label for="{{ form.subject.id_for_label }}" class="form-label">{{ form.subject.label }}</label>
+    {% render_field form.subject %}
+</div>

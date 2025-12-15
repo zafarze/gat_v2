@@ -1,0 +1,91 @@
+{% extends 'base.html' %}
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<h1 class="page-title">{{ title }}</h1>
+
+<div class="p-4 mb-8 text-orange-800 bg-orange-100 border-l-4 border-orange-500">
+    <h3 class="font-bold">ВНИМАНИЕ!</h3>
+    <p>Действия на этой странице необратимы. Удаленные данные будет невозможно восстановить. Пожалуйста, будьте предельно осторожны.</p>
+</div>
+
+{# -- Очистка результатов -- #}
+<h2 class="text-2xl font-bold text-gray-700 mb-4">Очистка Результатов Тестов</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+    <div class="data-card p-6">
+        <h3 class="text-xl font-semibold text-gray-800 mb-4">Очистить по классу</h3>
+        <p class="text-gray-600 mb-4">Удаляет все <span class="font-bold">результаты тестов</span> для учеников выбранного класса.</p>
+        <form method="post" onsubmit="return confirm('Вы уверены, что хотите удалить все РЕЗУЛЬТАТЫ для выбранного класса?');">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label for="class_id_results" class="form-label">Выберите класс:</label>
+                <select name="class_id" id="class_id_results" class="form-input" required>
+                    <option value="">---</option>
+                    {% for class in classes %}
+                        <option value="{{ class.id }}">{{ class.name }} ({{ class.school.name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" name="clear_results_class" class="modern-btn primary w-full justify-center">Удалить результаты класса</button>
+        </form>
+    </div>
+    <div class="data-card p-6">
+        <h3 class="text-xl font-semibold text-gray-800 mb-4">Полная очистка результатов</h3>
+        <p class="text-gray-600 mb-4">Удаляет АБСОЛЮТНО ВСЕ <span class="font-bold">результаты тестов</span> в системе.</p>
+        <form method="post" onsubmit="return confirm('ВЫ ТОЧНО УВЕРЕНЫ? Это действие удалит все РЕЗУЛЬТАТЫ ТЕСТОВ безвозвратно!');">
+            {% csrf_token %}
+            <button type="submit" name="clear_results_all" class="modern-btn primary w-full justify-center">Удалить все результаты</button>
+        </form>
+    </div>
+</div>
+
+{# -- Удаление учеников -- #}
+<h2 class="text-2xl font-bold text-red-700 mb-4">🚨 Удаление Учеников (ОПАСНО)</h2>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+    
+    <div class="data-card p-6 border-2 border-red-500">
+        <h3 class="text-xl font-bold text-red-800 mb-4">Удалить учеников параллели</h3>
+        <p class="text-red-700 mb-4">Удаляет <span class="font-bold">всех учеников и их данные</span> из выбранной параллели (например, все 5-е классы).</p>
+        <form method="post" onsubmit="return confirm('ВНИМАНИЕ! Вы собираетесь удалить ВСЕХ УЧЕНИКОВ из целой параллели. Это действие нельзя отменить. Продолжить?');">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label for="parallel_id_students" class="form-label">Выберите параллель:</label>
+                <select name="parallel_id" id="parallel_id_students" class="form-input" required>
+                    <option value="">---</option>
+                    {% for parallel in parallels %}
+                        <option value="{{ parallel.id }}">{{ parallel.name }} ({{ parallel.school.name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" name="delete_students_parallel" class="modern-btn danger w-full justify-center">Удалить учеников параллели</button>
+        </form>
+    </div>
+
+    <div class="data-card p-6 border-2 border-red-500">
+        <h3 class="text-xl font-bold text-red-800 mb-4">Удалить учеников класса</h3>
+        <p class="text-red-700 mb-4">Удаляет <span class="font-bold">всех учеников и их данные</span> из выбранного класса.</p>
+        <form method="post" onsubmit="return confirm('ВНИМАНИЕ! Вы собираетесь удалить всех УЧЕНИКОВ этого класса. Это действие нельзя отменить. Продолжить?');">
+            {% csrf_token %}
+            <div class="mb-4">
+                <label for="class_id_students" class="form-label">Выберите класс:</label>
+                <select name="class_id" id="class_id_students" class="form-input" required>
+                    <option value="">---</option>
+                    {% for class in classes %}
+                        <option value="{{ class.id }}">{{ class.name }} ({{ class.school.name }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <button type="submit" name="delete_students_class" class="modern-btn danger w-full justify-center">Удалить учеников класса</button>
+        </form>
+    </div>
+    
+    <div class="data-card p-6 border-2 border-red-500">
+        <h3 class="text-xl font-bold text-red-800 mb-4">Удалить ВСЕХ учеников</h3>
+        <p class="text-red-700 mb-4">Удаляет <span class="font-bold">ВСЕХ УЧЕНИКОВ и все их данные</span> в системе.</p>
+        <form method="post" onsubmit="return confirm('СУПЕР-ОПАСНО! ВЫ УДАЛЯЕТЕ ВСЕХ УЧЕНИКОВ И ВСЕ ИХ РЕЗУЛЬТАТЫ! ПОСЛЕДНЕЕ ПРЕДУПРЕЖДЕНИЕ!');">
+            {% csrf_token %}
+            <button type="submit" name="delete_students_all" class="modern-btn danger w-full justify-center">Удалить ВСЕХ учеников</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

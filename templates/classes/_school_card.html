@@ -1,0 +1,65 @@
+{# core/templates/classes/_school_card.html #}
+
+{# This table displays the classes for a single school. #}
+{# It expects a 'school' object passed from the parent template (list.html). #}
+{# It also expects 'edit_url', 'delete_url', and 'user' variables. #}
+
+<table class="min-w-full">
+    {# Thead is visually hidden (sr-only) because the school name is already displayed #}
+    {# in the card header above this table in list.html. #}
+    <thead class="bg-gray-50 sr-only">
+        <tr>
+            <th class="table-header w-16">№</th> {# Column for row number #}
+            <th class="table-header">Название класса</th> {# Column for class name #}
+            {# Actions column header - only relevant if actions are shown #}
+            {% if user.is_superuser or user.profile.is_director %}
+                <th class="table-header text-right w-48">Действия</th>
+            {% endif %}
+        </tr>
+    </thead>
+
+    {# The table body - this is where HTMX will target updates for this specific school #}
+    {# The ID includes the school's primary key to make it unique #}
+    <tbody id="class-table-body-{{ school.pk }}" class="bg-white divide-y divide-gray-200">
+        {# Loop through all classes associated with the 'school' object. #}
+        {# 'school.classes.all' uses the related_name='classes' from the SchoolClass model's ForeignKey to School. #}
+        {% for class_item in school.classes.all %}
+            <tr class="hover:bg-gray-50 transition-colors">
+                {# Row number #}
+                <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">{{ forloop.counter }}</td>
+                {# Class name #}
+                <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">
+                    {{ class_item.name }}
+                </td>
+
+                {# Actions column - only shown to Superusers or Directors #}
+                {% if user.is_superuser or user.profile.is_director %}
+                    <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                        {# Edit button - triggers HTMX GET request to load the edit form into the modal #}
+                        <button @click.stop="showModal = true" {# Use .stop to prevent card collapse #}
+                                hx-get="{% url edit_url class_item.pk %}"
+                                hx-target="#modal-content"
+                                class="modern-btn secondary small">
+                            Редактировать
+                        </button>
+                        {# Delete button - sets Alpine.js variables for the delete confirmation modal #}
+                        <button @click.stop="showDeleteModal = true; {# Use .stop #}
+                                        deleteUrl = '{% url delete_url class_item.pk %}';
+                                        deleteItemName = '{{ class_item.name|escapejs }}';"
+                                class="modern-btn danger small ml-2">
+                            Удалить
+                        </button>
+                    </td>
+                {% endif %}
+            </tr>
+        {% empty %}
+            {# Row displayed if a school has no classes #}
+            <tr>
+                {# Colspan adjusts based on whether the actions column is visible #}
+                <td colspan="{% if user.is_superuser or user.profile.is_director %}3{% else %}2{% endif %}" class="px-4 py-6 text-center text-sm text-gray-500">
+                    В этой школе пока нет классов.
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+	{% load custom_filters %}
+    <meta charset="UTF-8">
+    <title>{{ title }}</title>
+    <style>
+        @page {
+            size: A4 landscape; /* Альбомная ориентация страницы */
+            margin: 1.5cm;
+        }
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 10px;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #ccc;
+            padding: 4px 6px;
+            text-align: center;
+        }
+        thead th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        .student-name {
+            text-align: left;
+            white-space: nowrap;
+        }
+        .correct {
+            background-color: #d4edda; /* Светло-зеленый */
+            font-weight: bold;
+        }
+        .incorrect {
+            background-color: #f8d7da; /* Светло-красный */
+        }
+        .total-score {
+            font-weight: bold;
+            background-color: #e2e8f0; /* Светло-серый */
+        }
+    </style>
+</head>
+<body>
+
+    <h1>{{ title }}</h1>
+
+    <table>
+        <thead>
+            <tr>
+                <th rowspan="2">№</th>
+                <th rowspan="2" class="student-name">Ф.И.О</th>
+                <th rowspan="2">Класс</th>
+                
+                {% for header in table_header %}
+                <th colspan="{{ header.questions|length }}">{{ header.subject.name }}</th>
+                {% endfor %}
+                
+                <th rowspan="2">Итог</th>
+            </tr>
+            <tr>
+                {% for header in table_header %}
+                    {% for q_num in header.questions %}
+                    <th>{{ q_num }}</th>
+                    {% endfor %}
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for data in students_data %}
+            <tr>
+                <td>{{ forloop.counter }}</td>
+                <td class="student-name">{{ data.student }}</td>
+                <td>{{ data.student.school_class.name }}</td>
+                
+                {# --- ✨ НАЧАЛО БЛОКА ИСПРАВЛЕНИЙ ✨ --- #}
+                {% for header in table_header %}
+                    {# 1. Получаем ID предмета в виде строки #}
+                    {% with subject_id_str=header.subject.id|stringformat:"s" %}
+                    {# 2. Используем .scores_by_subject (а не .scores) #}
+                    {% with answers=data.result.scores_by_subject|get_item:subject_id_str %}
+                        {% for q_num in header.questions %}
+                            {# 3. Получаем ответ по КЛЮЧУ (q_num) #}
+                            {% with answer=answers|get_item:q_num %}
+                                <td class="{% if answer == True %}correct{% elif answer == False %}incorrect{% endif %}">
+                                    {# 4. Сравниваем с True/False #}
+                                    {% if answer == True %}1{% elif answer == False %}0{% else %}-{% endif %}
+                                </td>
+                            {% endwith %}
+                        {% endfor %}
+                    {% endwith %}
+                    {% endwith %}
+                {% endfor %}
+                {# --- ✨ КОНЕЦ БЛОКА ИСПРАВЛЕНИЙ ✨ --- #}
+
+                <td class="total-score">{{ data.total_score }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="100%">Нет данных для отображения.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+</body>
+</html>

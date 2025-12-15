@@ -1,0 +1,82 @@
+{% load custom_filters %}
+<table class="min-w-full divide-y divide-gray-200">
+    <thead class="bg-gray-50">
+        <tr>
+            {# Объединяем ячейки по вертикали #}
+            <th rowspan="2" class="table-header">№</th>
+            <th rowspan="2" class="table-header">Ф.И.О.</th>
+            <th rowspan="2" class="table-header">Класс</th>
+
+            {# Заголовки предметов (объединяют ячейки с номерами вопросов) #}
+            {% for header in table_header %}
+            <th colspan="{{ header.questions|length }}" class="table-header">{{ header.subject.name }}</th>
+            {% endfor %}
+
+            {# Итог тоже объединяем по вертикали #}
+            <th rowspan="2" class="table-header">Итог</th>
+        </tr>
+        <tr>
+            {# Вторая строка заголовка с номерами вопросов #}
+            {% for header in table_header %}
+                {% for q_num in header.questions %}
+                <th class="table-header text-xs px-2">{{ q_num }}</th>
+                {% endfor %}
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody class="bg-white divide-y divide-gray-200">
+        {% for data in students_data %}
+        <tr class="hover:bg-gray-50">
+            <td class="table-cell font-bold">{{ forloop.counter }}</td>
+            <td class="table-cell font-medium text-gray-900 whitespace-nowrap">
+                {# Используем full_name_ru #}
+                <a href="{% url 'core:student_progress' data.student.pk %}" class="hover:text-indigo-600 hover:underline">
+                    {{ data.student.full_name_ru }}
+                </a>
+            </td>
+            <td class="table-cell">{{ data.student.school_class.name }}</td>
+
+            {# Ячейки с результатами по вопросам #}
+            {% for header in table_header %}
+                {% with subject_id_str=header.subject.id|stringformat:"s" %}
+                {# Получаем словарь ответов для ЭТОГО предмета #}
+                {% with answers_dict=data.result.scores_by_subject|get_item:subject_id_str %}
+                    {% for q_num in header.questions %} {# q_num здесь ЧИСЛО #}
+                        {# --- ✨ ИСПРАВЛЕНИЕ ЗДЕСЬ ✨ --- #}
+                        {# 1. Преобразуем q_num (число) в строку q_num_str #}
+                        {% with q_num_str=q_num|stringformat:"s" %}
+                            {# 2. Используем q_num_str (строку) для поиска в словаре answers_dict #}
+                            {% with answer=answers_dict|get_item:q_num_str %}
+                                <td class="px-2 py-4 text-center text-xs
+                                    {% if answer is True %}bg-green-50 text-green-800
+                                    {% elif answer is False %}bg-red-50 text-red-800
+                                    {% else %}bg-gray-50 text-gray-400{% endif %}">
+                                    {# Отображаем 1 для True, 0 для False, - для None/другого #}
+                                    {% if answer is True %}1
+                                    {% elif answer is False %}0
+                                    {% else %}-
+                                    {% endif %}
+                                </td>
+                            {% endwith %}
+                        {% endwith %}
+                        {# --- ✨ КОНЕЦ ИСПРАВЛЕНИЯ ✨ --- #}
+                    {% endfor %}
+                {% endwith %}
+                {% endwith %}
+            {% endfor %}
+
+            <td class="table-cell font-bold text-indigo-600">{{ data.total_score }}</td>
+        </tr>
+        {% empty %}
+        <tr>
+            {# Считаем colspan #}
+            {% with colspan_val=4 %}
+                {% for header in table_header %}
+                    {% with colspan_val=colspan_val|add:header.questions|length %}{% endwith %}
+                {% endfor %}
+                <td colspan="{{ colspan_val }}" class="text-center py-10 text-gray-500">Нет данных для отображения.</td>
+            {% endwith %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>

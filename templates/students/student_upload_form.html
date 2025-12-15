@@ -1,0 +1,84 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<a href="{% url 'core:management' %}" class="back-link mb-4">&larr; Назад к управлению</a>
+<h1 class="text-3xl font-bold text-gray-800 mb-6">{{ title }}</h1>
+
+<div class="bg-white p-8 rounded-lg shadow-md max-w-2xl mx-auto">
+    
+    {% if form.gat_test.field.queryset.count == 0 %}
+    <div class="p-4 mb-4 text-sm text-yellow-800 rounded-lg bg-yellow-100" role="alert">
+        <span class="font-medium">Внимание!</span> Не найдено тестов для даты из вашего файла. 
+        Показаны все доступные тесты.
+    </div>
+    {% elif form.gat_test.field.queryset.count < 10 %}
+    <div class="p-4 mb-4 text-sm text-blue-800 rounded-lg bg-blue-100" role="alert">
+        <span class="font-medium">Информация:</span> Показаны тесты, соответствующие дате вашего файла.
+        Найдено тестов: {{ form.gat_test.field.queryset.count }}
+    </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" id="uploadForm">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="p-4 mb-4 text-sm text-red-800 rounded-lg bg-red-100" role="alert">
+                {% for error in form.non_field_errors %}
+                    <span class="font-medium">Ошибка!</span> {{ error }}
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="mb-6">
+            <label for="{{ form.gat_test.id_for_label }}" class="form-label">{{ form.gat_test.label }}</label>
+            {{ form.gat_test }}
+            {% if form.gat_test.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.gat_test.errors|striptags }}</p>
+            {% endif %}
+            <p class="mt-1 text-sm text-gray-500" id="testCountInfo">
+                Доступно тестов: {{ form.gat_test.field.queryset.count }}
+            </p>
+        </div>
+
+        <div class="mb-6">
+            <label for="{{ form.file.id_for_label }}" class="form-label">{{ form.file.label }}</label>
+            {{ form.file }}
+            {% if form.file.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.file.errors|striptags }}</p>
+            {% endif %}
+            <p class="mt-1 text-sm text-gray-500">
+                Система автоматически определит дату теста из файла и покажет соответствующие тесты.
+                Поддерживаемые форматы даты в имени файла: YYYY-MM-DD, YYYY_MM_DD
+            </p>
+        </div>
+
+        <div class="mt-8 flex justify-end">
+            <button type="submit" class="modern-btn primary">
+                Загрузить и обработать
+            </button>
+        </div>
+    </form>
+</div>
+
+<script>
+// Дополнительный скрипт для улучшения UX
+document.getElementById('id_file').addEventListener('change', function(e) {
+    const fileName = e.target.files[0]?.name;
+    if (fileName) {
+        // Показываем имя файла пользователю
+        const fileInfo = document.createElement('p');
+        fileInfo.className = 'mt-2 text-sm text-gray-600';
+        fileInfo.textContent = `Выбран файл: ${fileName}`;
+        
+        // Удаляем предыдущее сообщение если есть
+        const oldInfo = document.querySelector('.file-info');
+        if (oldInfo) oldInfo.remove();
+        
+        fileInfo.classList.add('file-info');
+        e.target.parentNode.appendChild(fileInfo);
+    }
+});
+</script>
+{% endblock %}

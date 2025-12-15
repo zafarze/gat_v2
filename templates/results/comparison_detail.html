@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load custom_filters %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="flex justify-between items-center mb-6">
+    <div>
+        <a href="{% url 'archive_tests_list' test1.quarter.id test1.school_class.id %}" class="text-indigo-600 hover:underline mb-2 inline-block">&larr; Назад к тестам</a>
+        <h1 class="text-3xl font-bold text-gray-800">{{ title }}</h1>
+        <p class="text-sm text-gray-500">Сравнение GAT 1 ("{{ test1.name }}") и GAT 2 ("{{ test2.name }}")</p>
+    </div>
+</div>
+
+<div x-data="{ activeTab: 'total' }">
+    <div class="border-b border-gray-200 mb-6">
+        <nav class="-mb-px flex space-x-6">
+            <button @click="activeTab = 'total'" :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'total', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'total' }" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Итоговый рейтинг
+            </button>
+            <button @click="activeTab = 'gat1'" :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'gat1', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'gat1' }" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Подробно GAT-1
+            </button>
+            <button @click="activeTab = 'gat2'" :class="{ 'border-indigo-500 text-indigo-600': activeTab === 'gat2', 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300': activeTab !== 'gat2' }" class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                Подробно GAT-2
+            </button>
+        </nav>
+    </div>
+
+    <div class="bg-white shadow-md rounded-lg overflow-x-auto">
+        <div x-show="activeTab === 'total'">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Итоговое место</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Ученик</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Место GAT 1</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase">Место GAT 2</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for res in results %}
+                    <tr>
+                        <td class="px-6 py-4 text-center font-bold text-lg">
+                            {% if forloop.counter == 1 %} 🥇
+                            {% elif forloop.counter == 2 %} 🥈
+                            {% elif forloop.counter == 3 %} 🥉
+                            {% else %} {{ forloop.counter }}
+                            {% endif %}
+                        </td>
+                        <td class="px-6 py-4 font-medium text-gray-900">{{ res.student }}</td>
+                        <td class="px-6 py-4 text-center text-gray-600">{{ res.rank1 }}</td>
+                        <td class="px-6 py-4 text-center text-gray-600">{{ res.rank2 }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="4" class="text-center py-10 text-gray-500">Нет данных для отображения.</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <div x-show="activeTab === 'gat1'" style="display: none;">
+            {% include 'results/includes/detailed_table.html' with students_data=students_data_1 table_header=table_header_1 %}
+        </div>
+
+        <div x-show="activeTab === 'gat2'" style="display: none;">
+             {% include 'results/includes/detailed_table.html' with students_data=students_data_2 table_header=table_header_2 %}
+        </div>
+    </div>
+</div>
+{% endblock %}
