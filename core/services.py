@@ -1,11 +1,11 @@
 # D:\New_GAT\core\services.py
 
 import pandas as pd
+import re
+from datetime import datetime
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from .models import Student, StudentResult, GatTest, Question, SchoolClass, Subject
-from datetime import datetime
-import re
 
 # =============================================================================
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
@@ -50,6 +50,33 @@ def normalize_header(text):
         return str(text)
     
     return text.lower().strip()
+
+def extract_test_date_from_excel(uploaded_file):
+    """
+    Пытается извлечь дату теста из имени файла.
+    Поддерживаемые форматы: YYYY-MM-DD, YYYY_MM_DD, DD-MM-YYYY, DD.MM.YYYY
+    """
+    filename = uploaded_file.name
+    
+    # Шаблоны дат
+    date_patterns = [
+        r'(\d{4})[-_](\d{2})[-_](\d{2})',  # 2025-12-15 или 2025_12_15
+        r'(\d{2})[-_\.](\d{2})[-_\.](\d{4})' # 15-12-2025 или 15.12.2025
+    ]
+
+    for pattern in date_patterns:
+        match = re.search(pattern, filename)
+        if match:
+            groups = match.groups()
+            try:
+                if len(groups[0]) == 4: # YYYY-MM-DD
+                    return datetime.strptime(f"{groups[0]}-{groups[1]}-{groups[2]}", "%Y-%m-%d").date()
+                else: # DD-MM-YYYY
+                    return datetime.strptime(f"{groups[2]}-{groups[1]}-{groups[0]}", "%Y-%m-%d").date()
+            except ValueError:
+                continue
+                
+    return None
 
 # =============================================================================
 # --- ЗАГРУЗКА УЧЕНИКОВ ---
@@ -125,12 +152,23 @@ def process_student_upload(excel_file):
         for index, row in df.iterrows():
             row_num = index + 2
             
-            # ID
-            student_id = str(row.get('student_id')).strip()
+            # --- ЧТЕНИЕ ID (Защита от 0None) ---
+            raw_id = row.get('student_id')
+            if pd.isna(raw_id) or raw_id is None:
+                skipped_count += 1
+                continue
+
+            student_id = str(raw_id).strip()
+            if student_id.lower() in ['nan', 'none', '', '0']:
+                skipped_count += 1
+                continue
+
             if student_id.endswith('.0'):
                 student_id = student_id[:-2]
-            if student_id and not student_id.startswith('0') and len(student_id) < 6:
+            
+            if student_id.isdigit() and not student_id.startswith('0') and len(student_id) < 6:
                 student_id = '0' + student_id
+            # -----------------------------------
             
             if not student_id:
                 skipped_count += 1
@@ -150,7 +188,7 @@ def process_student_upload(excel_file):
                 val = str(row.get(key, '')).strip()
                 return val if val else None
 
-            # Таджикские (Теперь должны работать!)
+            # Таджикские
             tj_last = get_val('фамилия_tj')
             if tj_last: update_fields['last_name_tj'] = tj_last
             
@@ -236,8 +274,14 @@ def process_student_upload(excel_file):
         "errors": errors
     }
 
-# --- process_student_results_upload остается без изменений ---
+# =============================================================================
+# --- ЗАГРУЗКА РЕЗУЛЬТАТОВ ---
+# =============================================================================
+
 def process_student_results_upload(gat_test, excel_file):
+    """
+    Обрабатывает загрузку результатов GAT.
+    """
     try:
         df = pd.read_excel(excel_file, dtype={'Code': str})
     except Exception as e:
@@ -261,11 +305,21 @@ def process_student_results_upload(gat_test, excel_file):
         for index, row in df.iterrows():
             row_num = index + 2 
             
-            student_id = str(row.get('student_id')).strip()
+            # --- ЧТЕНИЕ ID (Защита от 0None и в этой функции) ---
+            raw_id = row.get('student_id')
+            if pd.isna(raw_id) or raw_id is None:
+                continue
+
+            student_id = str(raw_id).strip()
+            if student_id.lower() in ['nan', 'none', '', '0']:
+                continue
+
             if student_id.endswith('.0'):
                 student_id = student_id[:-2]
-            if student_id and not student_id.startswith('0'):
+                
+            if student_id.isdigit() and not student_id.startswith('0') and len(student_id) < 6:
                 student_id = '0' + student_id
+            # ----------------------------------------------------
             
             if not student_id:
                 continue
@@ -358,30 +412,3 @@ def process_student_results_upload(gat_test, excel_file):
         'created_students': created_students,
         'errors': errors
     }
-
-def extract_test_date_from_excel(uploaded_file):
-    """
-    Пытается извлечь дату теста из имени файла.
-    Поддерживаемые форматы: YYYY-MM-DD, YYYY_MM_DD, DD-MM-YYYY, DD.MM.YYYY
-    """
-    filename = uploaded_file.name
-    
-    # Шаблоны дат
-    date_patterns = [
-        r'(\d{4})[-_](\d{2})[-_](\d{2})',  # 2025-12-15 или 2025_12_15
-        r'(\d{2})[-_\.](\d{2})[-_\.](\d{4})' # 15-12-2025 или 15.12.2025
-    ]
-
-    for pattern in date_patterns:
-        match = re.search(pattern, filename)
-        if match:
-            groups = match.groups()
-            try:
-                if len(groups[0]) == 4: # YYYY-MM-DD
-                    return datetime.strptime(f"{groups[0]}-{groups[1]}-{groups[2]}", "%Y-%m-%d").date()
-                else: # DD-MM-YYYY
-                    return datetime.strptime(f"{groups[2]}-{groups[1]}-{groups[0]}", "%Y-%m-%d").date()
-            except ValueError:
-                continue
-                
-    return None
