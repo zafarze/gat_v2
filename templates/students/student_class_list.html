@@ -3,7 +3,6 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-{# ✨ ИЗМЕНЕНИЕ 1: Ссылка "назад" теперь ведет к списку параллелей этой школы #}
 <a href="{% url 'core:student_parallel_list' school.id %}" class="back-link mb-4">&larr; Назад к выбору параллели</a>
 
 <div class="page-header">
@@ -16,6 +15,21 @@
     </a>
 </div>
 
+{# ✨ СПЕЦИАЛЬНЫЙ БЛОК ДЛЯ УЧЕНИКОВ БЕЗ БУКВЫ КЛАССА ✨ #}
+{% if orphaned_count > 0 %}
+<div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6 rounded shadow-sm flex justify-between items-center">
+    <div>
+        <h3 class="font-bold text-yellow-800 text-lg">⚠️ Найдены ученики без распределения</h3>
+        <p class="text-yellow-700">
+            В параллели "{{ parent_class.name }}" числятся <strong>{{ orphaned_count }}</strong> учеников, не привязанных к конкретному классу (А, Б, В).
+        </p>
+    </div>
+    <a href="{% url 'core:student_list_combined' parent_class.id %}" class="modern-btn yellow whitespace-nowrap ml-4">
+        Открыть список этих учеников
+    </a>
+</div>
+{% endif %}
+
 <div class="data-card p-6">
     <div class="mb-6">
         <input type="search"
@@ -23,7 +37,6 @@
                value="{{ search_query }}"
                class="form-input"
                placeholder="Поиск по названию класса..."
-               {# ✨ ИЗМЕНЕНИЕ 2: HTMX теперь отправляет запрос на URL списка классов с ID параллели #}
                hx-get="{% url 'core:student_class_list' parent_class.id %}"
                hx-trigger="keyup changed delay:300ms, search"
                hx-target="#class-list-container"
@@ -31,7 +44,37 @@
     </div>
 
     <div id="class-list-container">
-        {% include "students/partials/_class_list.html" %}
+        {# Вставляем содержимое partials/_class_list.html прямо сюда, чтобы точно работало #}
+        {% if classes %}
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                
+                {# Карточка "Все классы" #}
+                <a href="{% url 'core:student_list_combined' parent_class.id %}" 
+                   class="block bg-indigo-50 border border-indigo-100 p-6 rounded-lg hover:shadow-md transition-all text-center group">
+                    <h3 class="text-lg font-bold text-indigo-700 group-hover:text-indigo-900">Все {{ parent_class.name }}-е</h3>
+                    <p class="text-indigo-500 text-sm mt-1">Общий список</p>
+                </a>
+
+                {# Карточки классов #}
+                {% for cls in classes %}
+                    <a href="{% url 'core:student_list' cls.id %}" class="block bg-white border border-gray-200 p-6 rounded-lg hover:shadow-md transition-all">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <h3 class="text-lg font-bold text-gray-800">{{ cls.name }}</h3>
+                                <p class="text-gray-500 text-sm mt-1">Классный рук: {{ cls.homeroom_teacher.get_full_name|default:"-" }}</p>
+                            </div>
+                            <span class="bg-gray-100 text-gray-600 py-1 px-2 rounded text-xs font-semibold">
+                                {{ cls.student_count }} уч.
+                            </span>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+        {% else %}
+            <div class="text-center py-10 text-gray-500">
+                Классы не найдены.
+            </div>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
