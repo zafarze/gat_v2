@@ -128,7 +128,7 @@ def process_student_upload(excel_file):
             # Вы сказали, что каждый ID должен начинаться с 0.
             # Если программа видит "30586", она превратит его в "030586"
             if student_id and not student_id.startswith('0'):
-                student_id = '0' + student_idN
+                student_id = '0' + student_id
             if not student_id:
                 skipped_count += 1
                 continue
@@ -285,10 +285,20 @@ def process_student_results_upload(gat_test, excel_file):
 
     with transaction.atomic():
         for index, row in df.iterrows():
-            row_num = index + 2
-            student_id = str(row.get('Code', '')).strip()
+            row_num = index + 2 # Номер строки в Excel (учитывая заголовок)
             
-            if not student_id or student_id.lower() == 'nan':
+            # Получаем ID
+            student_id = str(row.get('student_id')).strip()
+            if student_id.endswith('.0'):
+                student_id = student_id[:-2]
+                
+            # Исправление: ВОССТАНАВЛИВАЕМ ВЕДУЩИЙ НОЛЬ
+            # Вы сказали, что каждый ID должен начинаться с 0.
+            if student_id and not student_id.startswith('0'):
+                student_id = '0' + student_id  # <--- БЫЛО: student_idN (ошибка), СТАЛО: student_id
+            
+            if not student_id:
+                skipped_count += 1
                 continue
 
             # 1. Поиск или создание студента

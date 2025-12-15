@@ -57,6 +57,7 @@ urlpatterns = [
     path('dashboard/users/<int:pk>/delete/', account_views.UserDeleteView.as_view(), name='user_delete'),
     path('dashboard/users/<int:pk>/toggle-active/', account_views.toggle_user_active, name='user_toggle_active'),
     path('dashboard/permissions/', permissions.manage_permissions_view, name='manage_permissions'),
+    path('dashboard/students/school/<int:school_id>/export-excel/', students.export_school_students_excel, name='school_student_export_excel'),
 
     # =============================================================================
     # --- ПАНЕЛЬ УПРАВЛЕНИЯ (CRUD ОПЕРАЦИИ) ---

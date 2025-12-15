@@ -4,7 +4,7 @@
 import json
 import logging
 from collections import defaultdict
-
+from django.db.models import Q
 import pandas as pd
 from django.http import HttpResponse
 
@@ -960,35 +960,25 @@ def parallel_create_export_accounts(request, parallel_id):
         
     return response
 
-
-@login_required
-def export_students_excel(request, class_id):
+def _generate_students_excel(students_queryset, filename_prefix):
     """
-    Экспортирует список учеников в Excel с нумерацией, школой и классом.
+    Генерирует HTTP response с Excel-файлом для переданного списка учеников.
     """
-    school_class = get_object_or_404(SchoolClass, pk=class_id)
-    
-    # Проверка прав (опционально)
-    if not request.user.is_superuser and not request.user.profile.is_director:
-        pass # Тут можно добавить проверку, если нужно
-
-    # Получаем учеников
-    students = Student.objects.filter(school_class=school_class).select_related(
-        'school_class',             # Подгружаем класс
-        'school_class__school',     # Подгружаем школу (для названия)
-        'user_profile__user'        # Подгружаем пользователя (для логина)
-    ).order_by('last_name_ru', 'first_name_ru')
-
     data = []
-    # Используем enumerate(..., start=1) для нумерации (1, 2, 3...)
+    # Используем select_related для оптимизации (чтобы не делать 1000 запросов)
+    students = students_queryset.select_related(
+        'school_class',
+        'school_class__school',
+        'user_profile__user'
+    ).order_by('school_class__name', 'last_name_ru', 'first_name_ru')
+
     for index, s in enumerate(students, start=1):
-        
         username = s.user_profile.user.username if hasattr(s, 'user_profile') and s.user_profile.user else ''
         
         data.append({
-            '№': index,                             # 1. Нумерация
-            'Школа': s.school_class.school.name,    # 3. Название школы
-            'Класс': s.school_class.name,           # 2. Название класса
+            '№': index,
+            'Школа': s.school_class.school.name,
+            'Класс': s.school_class.name,
             'ID': s.student_id,
             'Фамилия (RU)': s.last_name_ru,
             'Имя (RU)': s.first_name_ru,
@@ -1000,30 +990,84 @@ def export_students_excel(request, class_id):
             'Статус': s.get_status_display()
         })
 
-    # Создаем DataFrame
-    df = pd.DataFrame(data)
+    # Если список пуст, создаем пустой DataFrame с колонками
+    if not data:
+        df = pd.DataFrame(columns=[
+            '№', 'Школа', 'Класс', 'ID', 'Фамилия (RU)', 'Имя (RU)', 
+            'Насаб (TJ)', 'Ном (TJ)', 'Surname (EN)', 'Name (EN)', 'Логин', 'Статус'
+        ])
+    else:
+        df = pd.DataFrame(data)
 
-    # Настройка ответа
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     
-    # Формируем имя файла: Школа_Класс_Students.xlsx
-    filename = f"{school_class.school.name}_{school_class.name}_Students.xlsx"
-    
-    # Кодировка имени файла для браузера
+    # Кодировка имени файла
     import urllib.parse
-    quoted_filename = urllib.parse.quote(filename)
+    quoted_filename = urllib.parse.quote(f"{filename_prefix}.xlsx")
     response['Content-Disposition'] = f'attachment; filename="{quoted_filename}"; filename*=UTF-8\'\'{quoted_filename}'
 
-    # Запись Excel с авто-шириной колонок
     with pd.ExcelWriter(response, engine='openpyxl') as writer:
         df.to_excel(writer, index=False, sheet_name='Students')
         
-        # Делаем красиво: настраиваем ширину колонок
+        # Авто-ширина колонок
         worksheet = writer.sheets['Students']
         for idx, col in enumerate(df.columns):
-            # Вычисляем максимальную длину содержимого в колонке
-            max_len = max((df[col].astype(str).map(len).max(), len(str(col)))) + 2
-            # Ставим ширину (но не больше 50 символов, чтобы не было гигантских колонок)
-            worksheet.column_dimensions[chr(65 + idx)].width = min(max_len, 50)
+            # Длина заголовка или максимальная длина контента
+            max_len = len(str(col))
+            if not df.empty:
+                max_val_len = df[col].astype(str).map(len).max()
+                if max_val_len > max_len:
+                    max_len = max_val_len
+            
+            worksheet.column_dimensions[chr(65 + idx)].width = min(max_len + 2, 50)
 
     return response
+
+
+# --- ИСПРАВЛЕННАЯ ФУНКЦИЯ (КЛАССЫ И ПАРАЛЛЕЛИ) ---
+@login_required
+def export_students_excel(request, class_id):
+    """
+    Экспортирует список учеников. 
+    ИСПРАВЛЕНО: Теперь работает и для отдельных классов (2А), и для параллелей (Все 2).
+    """
+    school_class = get_object_or_404(SchoolClass, pk=class_id)
+    
+    # Проверка прав (можно добавить если нужно)
+    
+    # Логика выбора учеников
+    if school_class.parent is None: 
+        # Это ПАРАЛЛЕЛЬ (например, "2"). Берем всех детей, у которых этот класс является родителем.
+        # Также берем тех, кто привязан напрямую (на всякий случай).
+        students_qs = Student.objects.filter(
+            Q(school_class=school_class) | Q(school_class__parent=school_class)
+        )
+        filename = f"{school_class.school.name}_Parallel_{school_class.name}_Students"
+    else:
+        # Это ПОДКЛАСС (например, "2А"). Берем только его учеников.
+        students_qs = Student.objects.filter(school_class=school_class)
+        filename = f"{school_class.school.name}_{school_class.name}_Students"
+
+    return _generate_students_excel(students_qs, filename)
+
+
+# --- НОВАЯ ФУНКЦИЯ (ВСЯ ШКОЛА) ---
+@login_required
+def export_school_students_excel(request, school_id):
+    """
+    Экспортирует ВСЕХ учеников выбранной школы.
+    """
+    school = get_object_or_404(School, pk=school_id)
+    
+    # Проверка прав: Админ или Директор этой школы
+    if not request.user.is_superuser:
+        if not (hasattr(request.user, 'profile') and 
+                request.user.profile.role == UserProfile.Role.DIRECTOR and 
+                school in get_accessible_schools(request.user)):
+             messages.error(request, "У вас нет прав на экспорт данных этой школы.")
+             return redirect('core:student_school_list')
+
+    students_qs = Student.objects.filter(school_class__school=school)
+    filename = f"{school.name}_ALL_STUDENTS"
+
+    return _generate_students_excel(students_qs, filename)

@@ -5,20 +5,35 @@
 {% block content %}
 <a href="{% url 'core:student_school_list' %}" class="back-link mb-4">&larr; Назад к выбору школы</a>
 
-<div class="page-header">
+{# --- ✨ ИЗМЕНЕНИЕ: Добавил flex и gap для кнопок --- #}
+<div class="page-header flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
     <div>
         <h1 class="page-title">{{ school.name }}</h1>
-        <p class="text-gray-500 mt-1">Выберите параллель</p>
+        <p class="text-gray-500 mt-1">Выберите параллель для просмотра учеников</p>
     </div>
-    <a href="{% url 'core:student_upload' %}?school_id={{ school.id }}" class="modern-btn secondary">
-        <span>Загрузить учеников</span>
-    </a>
+    
+    <div class="flex flex-wrap gap-3">
+        {# --- ✨ НОВАЯ КНОПКА: Скачать всю школу --- #}
+        {# Показываем только Админу или Директору #}
+        {% if user.is_superuser or user.profile.is_director %}
+        <a href="{% url 'core:school_student_export_excel' school.id %}" class="modern-btn green flex items-center gap-2" title="Скачать список всех учеников школы">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+            </svg>
+            <span>Скачать школу (Excel)</span>
+        </a>
+        {% endif %}
+        {# --- КОНЕЦ НОВОЙ КНОПКИ --- #}
+
+        <a href="{% url 'core:student_upload' %}?school_id={{ school.id }}" class="modern-btn secondary">
+            <span>Загрузить учеников</span>
+        </a>
+    </div>
 </div>
 
-<div class="data-card p-6">
+<div class="data-card p-6 mt-6">
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
         {% for p in parallels %}
-            {# Ссылка ведет на список классов (5А, 5Б) для этой параллели #}
             <a href="{% url 'core:student_class_list' p.id %}" class="block bg-white p-6 rounded-lg shadow-md hover:shadow-xl hover:scale-105 transition-all">
                 <h2 class="text-xl font-bold text-gray-800">Параллель «{{ p.name }}»</h2>
                 <p class="text-gray-500 mt-2">{{ p.student_count }} учеников</p>
