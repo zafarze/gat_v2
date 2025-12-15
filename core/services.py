@@ -14,7 +14,7 @@ from .models import Student, StudentResult, GatTest, Question, SchoolClass, Subj
 def normalize_cyrillic(text):
     """
     Заменяет латинские буквы, похожие на кириллицу, на их кириллические аналоги.
-    Используется для САМИХ ДАННЫХ (имен), чтобы 'A' (lat) стало 'А' (cyr).
+    Используется для нормализации имен (чтобы A (eng) стало А (rus)).
     """
     if not isinstance(text, str):
         return str(text) if text is not None else ""
@@ -42,9 +42,7 @@ def normalize_cyrillic(text):
 
 def normalize_header(text):
     """
-    ✨ ИСПРАВЛЕНО: Упрощенная очистка для заголовков Excel.
-    Теперь только нижний регистр и удаление пробелов.
-    Больше НЕ заменяет буквы, чтобы не ломать "Ном" и "Насаб".
+    Очистка заголовков Excel: нижний регистр и удаление пробелов.
     """
     if not isinstance(text, str):
         return str(text)
@@ -58,10 +56,9 @@ def extract_test_date_from_excel(uploaded_file):
     """
     filename = uploaded_file.name
     
-    # Шаблоны дат
     date_patterns = [
-        r'(\d{4})[-_](\d{2})[-_](\d{2})',  # 2025-12-15 или 2025_12_15
-        r'(\d{2})[-_\.](\d{2})[-_\.](\d{4})' # 15-12-2025 или 15.12.2025
+        r'(\d{4})[-_](\d{2})[-_](\d{2})',  # 2025-12-15
+        r'(\d{2})[-_\.](\d{2})[-_\.](\d{4})' # 15-12-2025
     ]
 
     for pattern in date_patterns:
@@ -79,7 +76,7 @@ def extract_test_date_from_excel(uploaded_file):
     return None
 
 # =============================================================================
-# --- ЗАГРУЗКА УЧЕНИКОВ ---
+# --- ЗАГРУЗКА УЧЕНИКОВ (ПОЛНАЯ ВЕРСИЯ) ---
 # =============================================================================
 
 def process_student_upload(excel_file):
@@ -87,25 +84,27 @@ def process_student_upload(excel_file):
     Универсальная загрузка списка студентов (RU, TJ, EN).
     """
     try:
-        # Читаем как строки (dtype=str)
+        # Читаем как строки (dtype=str) чтобы сохранить ведущие нули в ID
         df = pd.read_excel(excel_file, dtype=str)
-        # Применяем исправленную функцию очистки
+        # Нормализуем заголовки
         df.columns = [normalize_header(col) for col in df.columns]
         
     except Exception as e:
         return {'errors': [f"Ошибка чтения Excel-файла: {e}"]}
 
-    # --- 1. МАППИНГ КОЛОНОК ---
+    # --- 1. МАППИНГ КОЛОНОК (3 ЯЗЫКА) ---
     column_mapping = {
-        # ID
-        'code': 'student_id', 'id': 'student_id', 'student_id': 'student_id', 'id ученика': 'student_id',
-        # Класс
-        'section': 'класс', 'class': 'класс', 'класс': 'класс', 'class name': 'класс', 'grade': 'класс',
+        # ID / Код
+        'code': 'student_id', 'id': 'student_id', 'student_id': 'student_id', 
+        'id ученика': 'student_id', 'код': 'student_id', 'рамз': 'student_id',
+        
+        # Класс / Синф
+        'section': 'класс', 'class': 'класс', 'класс': 'класс', 
+        'class name': 'класс', 'grade': 'класс', 'синф': 'класс',
         
         # Русский (Base)
         'lastname': 'фамилия_рус', 'фамилия': 'фамилия_рус', 
         'фамилия (ru)': 'фамилия_рус', 'фамилия (рус)': 'фамилия_рус',
-        
         'firstname': 'имя_рус', 'имя': 'имя_рус', 
         'имя (ru)': 'имя_рус', 'имя (рус)': 'имя_рус',
         
@@ -116,7 +115,6 @@ def process_student_upload(excel_file):
         # Английский
         'surname': 'фамилия_en', 'surname (en)': 'фамилия_en', 'surname(en)': 'фамилия_en', 
         'surname en': 'фамилия_en', 'surname_en': 'фамилия_en', 'last_name_en': 'фамилия_en',
-        
         'name': 'имя_en', 'name (en)': 'имя_en', 'name(en)': 'имя_en', 
         'name en': 'имя_en', 'name_en': 'имя_en', 'first_name_en': 'имя_en'
     }
@@ -124,20 +122,20 @@ def process_student_upload(excel_file):
     # Переименовываем колонки
     df.rename(columns=column_mapping, inplace=True)
     
-    # Чистим
+    # Чистим от дублей колонок и NaN
     df = df.loc[:, ~df.columns.duplicated()]
     df = df.fillna('').replace('nan', '')
 
     # --- 2. ПРОВЕРКА ID ---
     if 'student_id' not in df.columns:
-        return {'errors': ["В файле ОБЯЗАТЕЛЬНО должна быть колонка 'ID' (или 'code', 'student_id')."]}
+        return {'errors': ["В файле ОБЯЗАТЕЛЬНО должна быть колонка 'ID' (или 'code', 'student_id', 'код', 'рамз')."]}
 
     created_count = 0
     updated_count = 0
     skipped_count = 0
     errors = []
 
-    # --- 3. КЕШ КЛАССОВ ---
+    # --- 3. КЕШ КЛАССОВ (Оптимизация) ---
     all_classes = SchoolClass.objects.select_related('school')
     classes_cache = {}
     
@@ -152,7 +150,7 @@ def process_student_upload(excel_file):
         for index, row in df.iterrows():
             row_num = index + 2
             
-            # --- ЧТЕНИЕ ID (Защита от 0None) ---
+            # --- ЧТЕНИЕ ID ---
             raw_id = row.get('student_id')
             if pd.isna(raw_id) or raw_id is None:
                 skipped_count += 1
@@ -168,13 +166,12 @@ def process_student_upload(excel_file):
             
             if student_id.isdigit() and not student_id.startswith('0') and len(student_id) < 6:
                 student_id = '0' + student_id
-            # -----------------------------------
             
             if not student_id:
                 skipped_count += 1
                 continue
 
-            # Поиск
+            # Поиск студента
             try:
                 student = Student.objects.get(student_id=student_id)
                 student_exists = True
@@ -182,7 +179,7 @@ def process_student_upload(excel_file):
                 student = None
                 student_exists = False
 
-            # Сбор данных
+            # Сбор полей для обновления
             update_fields = {}
             def get_val(key):
                 val = str(row.get(key, '')).strip()
@@ -191,25 +188,22 @@ def process_student_upload(excel_file):
             # Таджикские
             tj_last = get_val('фамилия_tj')
             if tj_last: update_fields['last_name_tj'] = tj_last
-            
             tj_first = get_val('имя_tj')
             if tj_first: update_fields['first_name_tj'] = tj_first
 
             # Английские
             en_last = get_val('фамилия_en')
             if en_last: update_fields['last_name_en'] = en_last
-            
             en_first = get_val('имя_en')
             if en_first: update_fields['first_name_en'] = en_first
 
             # Русские
             ru_last = get_val('фамилия_рус')
             if ru_last: update_fields['last_name_ru'] = normalize_cyrillic(ru_last)
-            
             ru_first = get_val('имя_рус')
             if ru_first: update_fields['first_name_ru'] = normalize_cyrillic(ru_first)
 
-            # --- А: ОБНОВЛЕНИЕ ---
+            # --- А: ОБНОВЛЕНИЕ СУЩЕСТВУЮЩЕГО ---
             if student_exists:
                 changed = False
                 for field, value in update_fields.items():
@@ -217,7 +211,7 @@ def process_student_upload(excel_file):
                         setattr(student, field, value)
                         changed = True
                 
-                # Класс
+                # Обновление класса
                 class_name_raw = get_val('класс')
                 if class_name_raw:
                     class_name_norm = normalize_cyrillic(class_name_raw).upper()
@@ -231,13 +225,14 @@ def process_student_upload(excel_file):
                     student.save()
                     updated_count += 1
 
-            # --- Б: СОЗДАНИЕ ---
+            # --- Б: СОЗДАНИЕ НОВОГО ---
             else:
                 class_name_raw = get_val('класс')
                 if not class_name_raw:
                      errors.append(f"Строка {row_num}: ID {student_id} не найден. Для создания нужен Класс.")
                      continue
                 
+                # Если нет русского имени, берем любое другое
                 if not ru_last or not ru_first:
                      ru_last = update_fields.get('last_name_en') or update_fields.get('last_name_tj') or 'Unknown'
                      ru_first = update_fields.get('first_name_en') or update_fields.get('first_name_tj') or 'Unknown'
@@ -275,29 +270,51 @@ def process_student_upload(excel_file):
     }
 
 # =============================================================================
-# --- ЗАГРУЗКА РЕЗУЛЬТАТОВ ---
+# --- ЗАГРУЗКА РЕЗУЛЬТАТОВ (ПОЛНАЯ БОЕВАЯ ВЕРСИЯ) ---
 # =============================================================================
 
 def process_student_results_upload(gat_test, excel_file):
     """
     Обрабатывает загрузку результатов GAT.
+    Включает маппинг колонок (RU/TJ/EN) и создание студентов 'на лету'.
     """
     try:
-        df = pd.read_excel(excel_file, dtype={'Code': str})
+        # Читаем все как строки
+        df = pd.read_excel(excel_file, dtype=str)
     except Exception as e:
         return False, {'errors': [f"Ошибка чтения файла: {e}"]}
 
-    df.columns = [str(col).strip() for col in df.columns]
+    # 1. Нормализуем заголовки
+    df.columns = [normalize_header(col) for col in df.columns]
+
+    # 2. Маппинг колонок (Русский, Английский, Таджикский)
+    column_mapping = {
+        # ID / Код
+        'code': 'student_id', 'id': 'student_id', 'student_id': 'student_id',
+        'код': 'student_id', 'рамз': 'student_id', 'id ученика': 'student_id',
+        
+        # Фамилия / Насаб / Surname
+        'surname': 'last_name', 'фамилия': 'last_name', 'насаб': 'last_name', 
+        'lastname': 'last_name', 'surname_en': 'last_name',
+        
+        # Имя / Ном / Name
+        'name': 'first_name', 'имя': 'first_name', 'ном': 'first_name', 
+        'firstname': 'first_name', 'name_en': 'first_name',
+        
+        # Класс / Синф / Class
+        'section': 'class_name', 'class': 'class_name', 'класс': 'class_name', 
+        'синф': 'class_name', 'grade': 'class_name'
+    }
+    df.rename(columns=column_mapping, inplace=True)
 
     created_students = 0
     results_processed = 0
     errors = []
 
-    subjects_map = {
-        normalize_cyrillic(s.name.strip().lower()): s 
-        for s in gat_test.subjects.all()
-    }
+    # Подготовка мапы предметов
+    subjects_map = {}
     for s in gat_test.subjects.all():
+        subjects_map[normalize_cyrillic(s.name.strip().lower())] = s
         if s.abbreviation:
             subjects_map[normalize_cyrillic(s.abbreviation.strip().lower())] = s
 
@@ -305,7 +322,7 @@ def process_student_results_upload(gat_test, excel_file):
         for index, row in df.iterrows():
             row_num = index + 2 
             
-            # --- ЧТЕНИЕ ID (Защита от 0None и в этой функции) ---
+            # --- Чтение и очистка ID ---
             raw_id = row.get('student_id')
             if pd.isna(raw_id) or raw_id is None:
                 continue
@@ -319,36 +336,49 @@ def process_student_results_upload(gat_test, excel_file):
                 
             if student_id.isdigit() and not student_id.startswith('0') and len(student_id) < 6:
                 student_id = '0' + student_id
-            # ----------------------------------------------------
             
             if not student_id:
                 continue
-
+            
+            # --- Поиск студента ---
             student = Student.objects.filter(student_id=student_id).first()
 
+            # --- Если студент не найден, пробуем создать (только если есть данные) ---
             if not student:
-                last_name = normalize_cyrillic(str(row.get('Surname', '')).strip())
-                first_name = normalize_cyrillic(str(row.get('Name', '')).strip())
-                class_name_raw = str(row.get('Section', '')).strip()
+                last_name = normalize_cyrillic(str(row.get('last_name', '')).strip())
+                first_name = normalize_cyrillic(str(row.get('first_name', '')).strip())
+                class_name_raw = str(row.get('class_name', '')).strip()
 
+                # Убираем 'nan' строки
+                if last_name.lower() == 'nan': last_name = ''
+                if first_name.lower() == 'nan': first_name = ''
+                if class_name_raw.lower() == 'nan': class_name_raw = ''
+
+                # Если данных не хватает — пропускаем с записью ошибки, но НЕ падаем
                 if not (last_name and first_name and class_name_raw):
-                    errors.append(f"Строка {row_num}: Не найден студент {student_id} и не хватает данных для создания.")
-                    continue
+                    errors.append(f"Строка {row_num}: Студент {student_id} не найден, и нет данных для создания (Фамилия, Имя, Класс).")
+                    continue 
 
-                parent_class_name = gat_test.school_class.name
+                # Логика определения класса (наследование от теста)
+                parent_class_name = gat_test.school_class.name # Например "10"
+                
+                # Если в файле "10А", а тест для "10" -> все ок
+                # Если в файле "А", а тест для "10" -> делаем "10А"
                 if class_name_raw.startswith(parent_class_name):
                      full_class_name = class_name_raw 
                 else:
                      full_class_name = f"{parent_class_name}{class_name_raw}" 
-
+                
                 full_class_name = normalize_cyrillic(full_class_name)
 
+                # Ищем класс в базе
                 school_class = SchoolClass.objects.filter(
                     school=gat_test.school, 
                     name=full_class_name,
                     parent=gat_test.school_class
                 ).first()
 
+                # Если класса нет - создаем
                 if not school_class:
                     school_class = SchoolClass.objects.create(
                         school=gat_test.school,
@@ -356,6 +386,7 @@ def process_student_results_upload(gat_test, excel_file):
                         parent=gat_test.school_class
                     )
 
+                # Создаем студента
                 student = Student.objects.create(
                     student_id=student_id,
                     school_class=school_class,
@@ -365,10 +396,17 @@ def process_student_results_upload(gat_test, excel_file):
                 )
                 created_students += 1
 
+            # --- КРИТИЧЕСКАЯ ЗАЩИТА ---
+            # Если student все еще None (создание не удалось), пропускаем
+            if student is None:
+                continue
+
+            # --- Подсчет баллов ---
             scores_by_subject = {} 
             total_score = 0
             
             for col_name in df.columns:
+                # Ищем колонки формата "Математика_1", "МАТ_5" и т.д.
                 if '_' not in col_name: continue
                 
                 parts = col_name.rsplit('_', 1)
@@ -377,6 +415,7 @@ def process_student_results_upload(gat_test, excel_file):
                 subj_name_raw, q_num_str = parts
                 subj_name_norm = normalize_cyrillic(subj_name_raw.lower())
                 
+                # Проверяем, есть ли такой предмет и номер вопроса - число
                 if subj_name_norm not in subjects_map: continue
                 if not q_num_str.isdigit(): continue
 
@@ -384,7 +423,9 @@ def process_student_results_upload(gat_test, excel_file):
                 q_num = int(q_num_str)
                 
                 try:
-                    val = int(row[col_name])
+                    # Конвертируем значение (1, 0, +, -) в булево
+                    val_str = str(row[col_name]).replace(',', '.')
+                    val = float(val_str)
                     is_correct = (val > 0)
                 except (ValueError, TypeError):
                     is_correct = False
@@ -397,6 +438,7 @@ def process_student_results_upload(gat_test, excel_file):
                 
                 scores_by_subject[str(subject.id)][str(q_num)] = is_correct
 
+            # --- Сохранение результата ---
             StudentResult.objects.update_or_create(
                 student=student,
                 gat_test=gat_test,
