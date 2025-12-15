@@ -4,6 +4,8 @@ import pandas as pd
 from django.db import transaction
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from .models import Student, StudentResult, GatTest, Question, SchoolClass, Subject
+from datetime import datetime
+import re
 
 # =============================================================================
 # --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
@@ -356,3 +358,30 @@ def process_student_results_upload(gat_test, excel_file):
         'created_students': created_students,
         'errors': errors
     }
+
+def extract_test_date_from_excel(uploaded_file):
+    """
+    Пытается извлечь дату теста из имени файла.
+    Поддерживаемые форматы: YYYY-MM-DD, YYYY_MM_DD, DD-MM-YYYY, DD.MM.YYYY
+    """
+    filename = uploaded_file.name
+    
+    # Шаблоны дат
+    date_patterns = [
+        r'(\d{4})[-_](\d{2})[-_](\d{2})',  # 2025-12-15 или 2025_12_15
+        r'(\d{2})[-_\.](\d{2})[-_\.](\d{4})' # 15-12-2025 или 15.12.2025
+    ]
+
+    for pattern in date_patterns:
+        match = re.search(pattern, filename)
+        if match:
+            groups = match.groups()
+            try:
+                if len(groups[0]) == 4: # YYYY-MM-DD
+                    return datetime.strptime(f"{groups[0]}-{groups[1]}-{groups[2]}", "%Y-%m-%d").date()
+                else: # DD-MM-YYYY
+                    return datetime.strptime(f"{groups[2]}-{groups[1]}-{groups[0]}", "%Y-%m-%d").date()
+            except ValueError:
+                continue
+                
+    return None
