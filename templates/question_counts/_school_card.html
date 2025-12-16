@@ -1,82 +1,101 @@
 {# D:\New_GAT\templates\question_counts\_school_card.html #}
 
-<div class="data-card p-0 overflow-hidden mb-8 border border-gray-200 shadow-sm rounded-xl">
-    <div class="p-5 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
-        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+{# ✨ x-data="{ expanded: false }" — это и есть настройка по умолчанию. Если хочешь открытое, ставь true #}
+<div x-data="{ expanded: false }" class="data-card p-0 overflow-hidden mb-6 border border-gray-200 shadow-sm rounded-xl transition-all duration-300">
+    
+    <div @click="expanded = !expanded" 
+         class="p-5 bg-white border-b border-gray-100 flex justify-between items-center cursor-pointer hover:bg-gray-50 transition-colors">
+        
+        <div class="flex items-center gap-3">
+            <div class="p-2 bg-indigo-50 rounded-lg text-indigo-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                </svg>
+            </div>
+            
+            <div>
+                <h2 class="text-lg font-bold text-gray-800">{{ school.name }}</h2>
+                {# Показываем краткую сводку, когда свернуто (опционально) #}
+                <p x-show="!expanded" class="text-xs text-gray-400 mt-0.5">Нажмите, чтобы развернуть подробности...</p>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-4">
+            <span class="text-sm font-medium text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                {{ school.all_question_counts|length }} записей
+            </span>
+            
+            <svg xmlns="http://www.w3.org/2000/svg" 
+                 class="h-5 w-5 text-gray-400 transform transition-transform duration-300"
+                 :class="{'rotate-180': expanded}"
+                 fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
             </svg>
-            {{ school.name }}
-        </h2>
-        <span class="text-sm text-gray-500 bg-white px-3 py-1 rounded-full border shadow-sm">
-            Всего записей: {{ school.all_question_counts|length }}
-        </span>
+        </div>
     </div>
 
-    <div class="p-6 bg-gray-50/30">
-        {# ✨ ГРУППИРОВКА: Разбиваем список по классам (school_class) #}
+    <div x-show="expanded" 
+         x-transition:enter="transition ease-out duration-200"
+         x-transition:enter-start="opacity-0 -translate-y-2"
+         x-transition:enter-end="opacity-100 translate-y-0"
+         class="p-6 bg-gray-50/50 border-t border-gray-100">
+         
+        {# ✨ ГРУППИРОВКА: Разбиваем список по классам #}
         {% regroup school.all_question_counts by school_class as class_list %}
 
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
             {% for class_group in class_list %}
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 flex flex-col">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 flex flex-col h-full">
                     
-                    <div class="px-5 py-3 border-b border-gray-100 bg-indigo-50/50 rounded-t-xl flex justify-between items-center">
-                        <h3 class="font-bold text-lg text-indigo-900">
-                            {{ class_group.grouper.name }} класс
-                        </h3>
-                        <span class="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-md">
-                            {{ class_group.list|length }} предм.
-                        </span>
-                    </div>
+                    <div class="px-5 py-4 border-b border-gray-100 bg-white rounded-t-xl flex justify-between items-center gap-4">
+    <div class="flex items-center gap-3 min-w-0 overflow-hidden">
+            <span class="flex-shrink-0 w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+            
+            <h3 class="font-bold text-lg text-gray-800 truncate" title="{{ class_group.grouper.name }} класс">
+            {{ class_group.grouper.name }} класс
+        </h3>
+    </div>
+    
+    <span class="flex-shrink-0 text-xs font-medium text-gray-500 bg-gray-100 px-2.5 py-1 rounded-md whitespace-nowrap">
+        {{ class_group.list|length }} предм.
+    </span>
+</div>
 
                     <div class="p-2 flex-grow">
                         <table class="w-full text-sm text-left text-gray-600">
-                            <thead class="text-xs text-gray-400 uppercase bg-gray-50 border-b">
-                                <tr>
-                                    <th class="px-3 py-2 font-medium">Предмет</th>
-                                    <th class="px-3 py-2 font-medium text-center">Вопросы</th>
-                                    {% if user.is_superuser %}
-                                    <th class="px-3 py-2 font-medium text-right"></th>
-                                    {% endif %}
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-gray-100">
+                            <tbody class="divide-y divide-gray-50">
                                 {% for qc in class_group.list %}
-                                <tr class="hover:bg-gray-50 group">
-                                    <td class="px-3 py-2 font-medium text-gray-800">
+                                <tr class="hover:bg-gray-50 group transition-colors">
+                                    <td class="px-4 py-2.5 font-medium text-gray-700">
                                         {{ qc.subject.name }}
                                     </td>
-                                    <td class="px-3 py-2 text-center">
-                                        <span class="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-indigo-100 bg-indigo-600 rounded-full">
-                                            {{ qc.number_of_questions }}
-                                        </span>
-                                    </td>
-                                    {% if user.is_superuser %}
-                                    <td class="px-3 py-2 text-right">
-                                        <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <button @click="showModal = true"
-                                                    hx-get="{% url 'core:question_count_edit' qc.pk %}"
-                                                    hx-target="#modal-content"
-                                                    class="p-1 text-blue-600 hover:bg-blue-50 rounded"
-                                                    title="Редактировать">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                                </svg>
-                                            </button>
-                                            <button @click="showDeleteModal = true;
-                                                            deleteUrl = '{% url 'core:question_count_delete' qc.pk %}';
-                                                            deleteItemName = '{{ qc.subject.name }} ({{ class_group.grouper.name }})';
-                                                            deleteSchoolId = {{ school.id }};"
-                                                    class="p-1 text-red-600 hover:bg-red-50 rounded"
-                                                    title="Удалить">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                                </svg>
-                                            </button>
+                                    <td class="px-4 py-2.5 text-right w-24">
+                                        <div class="flex items-center justify-end gap-3">
+                                            <span class="inline-flex items-center justify-center w-8 h-8 text-sm font-bold text-white bg-indigo-600 rounded-full shadow-sm shadow-indigo-200">
+                                                {{ qc.number_of_questions }}
+                                            </span>
+                                            
+                                            {% if user.is_superuser %}
+                                            <div class="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 bg-white shadow-lg border rounded-lg p-1 z-10">
+                                                <button @click.stop="showModal = true"
+                                                        hx-get="{% url 'core:question_count_edit' qc.pk %}"
+                                                        hx-target="#modal-content"
+                                                        class="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                                        title="Редактировать">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                                                </button>
+                                                <button @click.stop="showDeleteModal = true;
+                                                                deleteUrl = '{% url 'core:question_count_delete' qc.pk %}';
+                                                                deleteItemName = '{{ qc.subject.name }} ({{ class_group.grouper.name }})';
+                                                                deleteSchoolId = {{ school.id }};"
+                                                        class="p-1.5 text-red-600 hover:bg-red-50 rounded transition-colors"
+                                                        title="Удалить">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                                </button>
+                                            </div>
+                                            {% endif %}
                                         </div>
                                     </td>
-                                    {% endif %}
                                 </tr>
                                 {% endfor %}
                             </tbody>
@@ -85,16 +104,17 @@
                 </div>
             {% endfor %}
             
-            {# Если список пуст #}
             {% if not class_list %}
-                <div class="col-span-full text-center py-8 text-gray-500 italic">
-                    В этой школе пока не задано количество вопросов.
+                <div class="col-span-full text-center py-12">
+                    <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 mb-4">
+                        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"></path></svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-gray-900">Пока пусто</h3>
+                    <p class="text-gray-500 mt-1">В этой школе пока не задано количество вопросов.</p>
                 </div>
             {% endif %}
         </div>
     </div>
     
-    {# Этот блок нужен для HTMX обновления всей карточки школы, а не только tbody #}
-    {# Мы используем id="qc-tbody-{{ school.id }}" как якорь, но теперь обновляем всю карточку _school_card #}
     <div id="qc-tbody-{{ school.id }}" class="hidden"></div>
 </div>
