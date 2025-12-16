@@ -58,6 +58,8 @@ urlpatterns = [
     path('dashboard/users/<int:pk>/toggle-active/', account_views.toggle_user_active, name='user_toggle_active'),
     path('dashboard/permissions/', permissions.manage_permissions_view, name='manage_permissions'),
     path('dashboard/students/school/<int:school_id>/export-excel/', students.export_school_students_excel, name='school_student_export_excel'),
+    path('api/load-tests-for-upload/', api.load_tests_for_upload_api, name='api_load_tests_for_upload'),
+    path('api/load-schools-for-upload/', api.load_schools_for_upload_api, name='api_load_schools_for_upload'),
 
     # =============================================================================
     # --- ПАНЕЛЬ УПРАВЛЕНИЯ (CRUD ОПЕРАЦИИ) ---

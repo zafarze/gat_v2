@@ -132,11 +132,16 @@ def upload_results_view(request):
                 pass
 
     else:
+        # Это блок GET запроса (открытие страницы)
         form = UploadFileForm()
+
+    # Получаем список всех четвертей для фильтра
+    all_quarters = Quarter.objects.select_related('year').order_by('-year__start_date', '-start_date')
 
     context = {
         'form': form,
-        'title': 'Загрузка результатов GAT тестов'
+        'title': 'Загрузка результатов GAT тестов',
+        'all_quarters': all_quarters # <--- ДОБАВЛЯЕМ ЭТУ СТРОКУ
     }
     return render(request, 'results/upload_form.html', context)
 

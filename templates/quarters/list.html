@@ -14,23 +14,41 @@
 >
     <div class="data-card p-6">
         {# --- ЗАГОЛОВОК СТРАНИЦЫ И КНОПКА "ДОБАВИТЬ" --- #}
-        <div class="page-header mb-6">
+        <div class="page-header mb-6 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
                 <a href="{% url 'core:management' %}" class="back-link">&larr; Назад в Управление</a>
                 <h1 class="page-title mt-1">{{ title }}</h1>
             </div>
 
-            {# ✨ ИЗМЕНЕНИЕ: Оборачиваем кнопку в условие ✨ #}
-            {% if user.is_superuser %}
-            <button @click="showModal = true"
-                    hx-get="{% url add_url %}"
-                    hx-target="#modal-content"
-                    class="modern-btn primary flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
-                <span>Добавить</span>
-            </button>
-            {% endif %}
-            {# ✨ КОНЕЦ ИЗМЕНЕНИЯ ✨ #}
+            <div class="flex items-center gap-4">
+                {# === ✨ НОВЫЙ ПЕРЕКЛЮЧАТЕЛЬ (TOGGLE) ✨ === #}
+                <label class="inline-flex items-center cursor-pointer">
+                    {# При изменении (change) отправляем GET запрос на этот же URL с параметром show_all=true/false #}
+                    {# Результат (таблицу) вставляем вместо #table-body #}
+                    <input type="checkbox" 
+                           name="show_all" 
+                           value="true" 
+                           class="sr-only peer"
+                           hx-get="{% url 'core:quarter_list' %}"
+                           hx-target="#table-body"
+                           hx-swap="outerHTML"
+                           hx-trigger="change">
+                    <div class="relative w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                    <span class="ms-3 text-sm font-medium text-gray-900">Показать архив</span>
+                </label>
+                {# === КОНЕЦ ПЕРЕКЛЮЧАТЕЛЯ === #}
+
+                {# Кнопка добавления (остается как была) #}
+                {% if user.is_superuser %}
+                <button @click="showModal = true"
+                        hx-get="{% url 'core:quarter_add' %}"
+                        hx-target="#modal-content"
+                        class="modern-btn primary flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                    <span>Добавить</span>
+                </button>
+                {% endif %}
+            </div>
         </div>
 
         {# --- ТАБЛИЦА ДАННЫХ --- #}

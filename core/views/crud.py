@@ -4,6 +4,7 @@ import json
 from collections import defaultdict
 from django.http import HttpResponse
 from django.shortcuts import render, redirect, get_object_or_404
+from django.utils import timezone
 from django.views.generic import FormView, ListView, CreateView, UpdateView, DeleteView
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -63,25 +64,32 @@ def get_list_view_instance(model_name, request):
 def _get_question_count_htmx_response(request, school, success_message, message_type='success', is_delete=False):
     """
     Вспомогательная функция: генерирует HTMX-ответ для CRUD-операций с QuestionCount.
-    Возвращает обновленное содержимое таблицы для конкретной школы.
+    Возвращает ОБНОВЛЕННУЮ КАРТОЧКУ ШКОЛЫ целиком.
     """
-    school.all_question_counts = QuestionCount.objects.filter(
+    # Перезагружаем данные для школы (с сортировкой!)
+    all_qcs = QuestionCount.objects.filter(
         school_class__school=school
-    ).select_related('subject', 'school_class').order_by('subject__name')
+    ).select_related('subject', 'school_class').order_by('school_class__name', 'subject__name')
+    
+    school.all_question_counts = all_qcs
 
     modal_event = "close-delete-modal" if is_delete else "close-modal"
     trigger = {
         modal_event: True,
         "show-message": {"text": success_message, "type": message_type}
     }
-    target_id = f"#qc-tbody-{school.id}"
+    
+    # ✨ ВАЖНО: Теперь мы целимся в контейнер всей школы
+    target_id = f"#school-card-{school.id}" 
+    
     headers = {
         'HX-Trigger': json.dumps(trigger),
         'HX-Retarget': target_id,
-        'HX-Reswap': 'innerHTML'
+        'HX-Reswap': 'innerHTML' # Заменяем содержимое контейнера школы
     }
 
-    html = render_to_string('question_counts/partials/_table_rows.html', {'school': school}, request=request)
+    # ✨ Рендерим карточку целиком
+    html = render_to_string('question_counts/_school_card.html', {'school': school, 'user': request.user}, request=request)
     return HttpResponse(html, headers=headers)
 
 # =============================================================================
@@ -305,7 +313,34 @@ class QuarterListView(HtmxListView):
     }
 
     def get_queryset(self):
-        return Quarter.objects.select_related('year').order_by('-year__start_date', 'start_date')
+        # 1. Получаем базовый запрос
+        qs = super().get_queryset()
+        
+        # 2. Проверяем, нажат ли переключатель "Показать архив"
+        # Если галочка стоит, в GET придет параметр show_all='true'
+        show_all = self.request.GET.get('show_all') == 'true'
+
+        # 3. Если переключатель ВЫКЛЮЧЕН (по умолчанию), фильтруем
+        if not show_all:
+            today = timezone.now().date()
+            
+            # Находим текущий учебный год
+            current_academic_year = AcademicYear.objects.filter(
+                start_date__lte=today, 
+                end_date__gte=today
+            ).first()
+
+            if current_academic_year:
+                # Показываем четверти ТОЛЬКО текущего года
+                qs = qs.filter(year=current_academic_year)
+            else:
+                # (Опционально) Если сейчас лето и учебный год не идет,
+                # можно показать последний добавленный год или ничего.
+                # Покажем последние 4 четверти, чтобы список не был пустым.
+                qs = qs.order_by('-end_date')[:4]
+
+        # 4. Возвращаем отсортированный список (сначала новые)
+        return qs.select_related('year').order_by('-year__start_date', 'start_date')
 
 class QuarterCreateView(HtmxCreateView):
     model = Quarter
@@ -934,12 +969,15 @@ class QuestionCountListView(HtmxListView):
         school_ids = [s.id for s in schools_list]
         all_qcs = QuestionCount.objects.filter(
             school_class__school_id__in=school_ids
-        ).select_related('subject', 'school_class').order_by('subject__name')
+        ).select_related('subject', 'school_class').order_by('school_class__name', 'subject__name')
+        
         qcs_by_school = defaultdict(list)
         for qc in all_qcs:
             qcs_by_school[qc.school_class.school_id].append(qc)
+            
         for school in schools_list:
             school.all_question_counts = qcs_by_school[school.id]
+            
         context['schools'] = schools_list
         return context
 

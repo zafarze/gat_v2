@@ -367,3 +367,67 @@ def api_load_subjects_for_user_form(request):
     form.fields['subjects'].queryset = Subject.objects.all().order_by('name')
         
     return render(request, 'accounts/partials/_user_form_subjects.html', {'profile_form': form})
+
+@login_required
+def load_tests_for_upload_api(request):
+    """
+    API: Возвращает список тестов (<option>) для выбранной четверти.
+    Используется на странице загрузки результатов.
+    """
+    quarter_id = request.GET.get('quarter_id')
+    tests = GatTest.objects.none()
+
+    if quarter_id:
+        try:
+            # Фильтруем тесты по выбранной четверти
+            tests = GatTest.objects.filter(quarter_id=quarter_id).order_by('-test_date')
+        except (ValueError, TypeError):
+            pass
+    
+    # Используем существующий шаблон partials/options.html
+    # (он у вас уже используется в функции load_quarters)
+    return render(request, 'partials/options.html', {'items': tests, 'placeholder': 'Выберите тест...'})
+
+@login_required
+def load_schools_for_upload_api(request):
+    """
+    API: Шаг 2. Возвращает список школ (<option>), у которых были тесты в выбранной четверти.
+    """
+    quarter_id = request.GET.get('quarter_id')
+    schools = School.objects.none()
+    
+    # Получаем доступные пользователю школы (чтобы директор не видел чужие)
+    accessible_schools = get_accessible_schools(request.user)
+
+    if quarter_id:
+        # Находим ID школ, у которых есть тесты в этой четверти
+        school_ids_with_tests = GatTest.objects.filter(
+            quarter_id=quarter_id
+        ).values_list('school_id', flat=True).distinct()
+        
+        # Фильтруем доступные школы по этому списку
+        schools = accessible_schools.filter(id__in=school_ids_with_tests).order_by('name')
+
+    return render(request, 'partials/options.html', {'items': schools, 'placeholder': 'Выберите школу...'})
+
+
+@login_required
+def load_tests_for_upload_api(request):
+    """
+    API: Шаг 3. Возвращает список тестов (<option>) для выбранной школы И четверти.
+    """
+    quarter_id = request.GET.get('quarter_id')
+    school_id = request.GET.get('school_id')
+    
+    tests = GatTest.objects.none()
+
+    if quarter_id and school_id:
+        try:
+            tests = GatTest.objects.filter(
+                quarter_id=quarter_id,
+                school_id=school_id
+            ).order_by('-test_date')
+        except (ValueError, TypeError):
+            pass
+    
+    return render(request, 'partials/options.html', {'items': tests, 'placeholder': 'Выберите тест...'})

@@ -1,25 +1,100 @@
 {# D:\New_GAT\templates\question_counts\_school_card.html #}
-<div class="data-card p-0 overflow-hidden">
-    <div class="p-4 bg-gray-50 border-b">
-        <h2 class="text-xl font-semibold text-gray-700">{{ school.name }}</h2>
+
+<div class="data-card p-0 overflow-hidden mb-8 border border-gray-200 shadow-sm rounded-xl">
+    <div class="p-5 bg-gray-50 border-b border-gray-200 flex justify-between items-center">
+        <h2 class="text-xl font-bold text-gray-800 flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+            </svg>
+            {{ school.name }}
+        </h2>
+        <span class="text-sm text-gray-500 bg-white px-3 py-1 rounded-full border shadow-sm">
+            Всего записей: {{ school.all_question_counts|length }}
+        </span>
     </div>
-    <div class="overflow-x-auto">
-        <table class="min-w-full">
-            <thead class="bg-gray-50/50">
-                <tr>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">№</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Предмет</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Кол-во вопросов</th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Класс</th>
-                    {% if user.is_superuser %}
-                    <th class="px-4 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
-                    {% endif %}
-                </tr>
-            </thead>
-            {# ✨ ИЗМЕНЕНИЕ: Добавлен ID и используется include #}
-            <tbody id="qc-tbody-{{ school.id }}" class="bg-white divide-y divide-gray-100">
-                {% include "question_counts/partials/_table_rows.html" %}
-            </tbody>
-        </table>
+
+    <div class="p-6 bg-gray-50/30">
+        {# ✨ ГРУППИРОВКА: Разбиваем список по классам (school_class) #}
+        {% regroup school.all_question_counts by school_class as class_list %}
+
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {% for class_group in class_list %}
+                <div class="bg-white rounded-xl shadow-sm border border-gray-200 hover:shadow-md transition-shadow duration-200 flex flex-col">
+                    
+                    <div class="px-5 py-3 border-b border-gray-100 bg-indigo-50/50 rounded-t-xl flex justify-between items-center">
+                        <h3 class="font-bold text-lg text-indigo-900">
+                            {{ class_group.grouper.name }} класс
+                        </h3>
+                        <span class="text-xs font-medium text-indigo-600 bg-indigo-100 px-2 py-0.5 rounded-md">
+                            {{ class_group.list|length }} предм.
+                        </span>
+                    </div>
+
+                    <div class="p-2 flex-grow">
+                        <table class="w-full text-sm text-left text-gray-600">
+                            <thead class="text-xs text-gray-400 uppercase bg-gray-50 border-b">
+                                <tr>
+                                    <th class="px-3 py-2 font-medium">Предмет</th>
+                                    <th class="px-3 py-2 font-medium text-center">Вопросы</th>
+                                    {% if user.is_superuser %}
+                                    <th class="px-3 py-2 font-medium text-right"></th>
+                                    {% endif %}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100">
+                                {% for qc in class_group.list %}
+                                <tr class="hover:bg-gray-50 group">
+                                    <td class="px-3 py-2 font-medium text-gray-800">
+                                        {{ qc.subject.name }}
+                                    </td>
+                                    <td class="px-3 py-2 text-center">
+                                        <span class="inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-indigo-100 bg-indigo-600 rounded-full">
+                                            {{ qc.number_of_questions }}
+                                        </span>
+                                    </td>
+                                    {% if user.is_superuser %}
+                                    <td class="px-3 py-2 text-right">
+                                        <div class="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <button @click="showModal = true"
+                                                    hx-get="{% url 'core:question_count_edit' qc.pk %}"
+                                                    hx-target="#modal-content"
+                                                    class="p-1 text-blue-600 hover:bg-blue-50 rounded"
+                                                    title="Редактировать">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                </svg>
+                                            </button>
+                                            <button @click="showDeleteModal = true;
+                                                            deleteUrl = '{% url 'core:question_count_delete' qc.pk %}';
+                                                            deleteItemName = '{{ qc.subject.name }} ({{ class_group.grouper.name }})';
+                                                            deleteSchoolId = {{ school.id }};"
+                                                    class="p-1 text-red-600 hover:bg-red-50 rounded"
+                                                    title="Удалить">
+                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                                </svg>
+                                            </button>
+                                        </div>
+                                    </td>
+                                    {% endif %}
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endfor %}
+            
+            {# Если список пуст #}
+            {% if not class_list %}
+                <div class="col-span-full text-center py-8 text-gray-500 italic">
+                    В этой школе пока не задано количество вопросов.
+                </div>
+            {% endif %}
+        </div>
     </div>
+    
+    {# Этот блок нужен для HTMX обновления всей карточки школы, а не только tbody #}
+    {# Мы используем id="qc-tbody-{{ school.id }}" как якорь, но теперь обновляем всю карточку _school_card #}
+    <div id="qc-tbody-{{ school.id }}" class="hidden"></div>
 </div>
