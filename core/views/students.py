@@ -7,6 +7,7 @@ from collections import defaultdict
 from django.db.models import Q
 import pandas as pd
 import urllib.parse
+from django.db.models import Count, Q
 
 # Сторонние библиотеки (Django)
 from django.contrib import messages
@@ -89,29 +90,46 @@ class StudentAccessMixin:
 
 @login_required
 def student_school_list_view(request):
-    """Шаг 1: Отображает список школ."""
+    """Шаг 1: Отображает список школ (исправлен счетчик)."""
     accessible_schools = get_accessible_schools(request.user)
+    
+    # Считаем только АКТИВНЫХ учеников во всей школе
     schools_with_counts = accessible_schools.annotate(
-        student_count=Count('classes__students')
+        student_count=Count(
+            'classes__students', 
+            filter=Q(classes__students__status='ACTIVE') # <--- ФИЛЬТР ЗДЕСЬ
+        )
     ).order_by('name')
 
     context = {'title': 'Ученики: Выберите школу', 'schools': schools_with_counts}
     return render(request, 'students/student_school_list.html', context)
 
+
 @login_required
 def student_parallel_list_view(request, school_id):
-    """Шаг 2: Отображает список параллелей."""
+    """Шаг 2: Отображает список параллелей (исправлен счетчик)."""
     school = get_object_or_404(School, id=school_id)
     if school not in get_accessible_schools(request.user):
         messages.error(request, "У вас нет доступа к этой школе.")
         return redirect('core:student_school_list')
 
     # Считаем сумму учеников в подклассах + учеников прямо в параллели
+    # ВЕЗДЕ добавляем фильтр status='ACTIVE'
     parallels = SchoolClass.objects.filter(school=school, parent__isnull=True)\
-                                   .annotate(
-                                       sub_cnt=Count('subclasses__students', distinct=True),
-                                       dir_cnt=Count('students', distinct=True)
-                                   )
+        .annotate(
+            # Считаем активных в подклассах (10А, 10Б...)
+            sub_cnt=Count(
+                'subclasses__students', 
+                distinct=True, 
+                filter=Q(subclasses__students__status='ACTIVE')
+            ),
+            # Считаем активных, привязанных напрямую к параллели (если есть)
+            dir_cnt=Count(
+                'students', 
+                distinct=True, 
+                filter=Q(students__status='ACTIVE')
+            )
+        )
     
     parallels_list = list(parallels)
     for p in parallels_list:
@@ -126,32 +144,36 @@ def student_parallel_list_view(request, school_id):
     })
 
 @login_required
-def student_class_list_view(request, parent_id):
-    """Шаг 3: Отображает список классов."""
-    parent_class = get_object_or_404(SchoolClass, id=parent_id)
-    school = parent_class.school
+def student_class_list_view(request, parent_id):  # <--- БЫЛО class_id, СТАЛО parent_id
+    """
+    Шаг 3: Отображает список конкретных классов (10А, 10Б...) внутри параллели.
+    """
+    # И тут тоже используем parent_id
+    parent_class = get_object_or_404(SchoolClass, pk=parent_id) 
 
-    if school not in get_accessible_schools(request.user):
-        messages.error(request, "У вас нет доступа к этому разделу.")
+    # Проверка доступа к школе
+    if parent_class.school not in get_accessible_schools(request.user):
+        messages.error(request, "У вас нет доступа к этой школе.")
         return redirect('core:student_school_list')
 
-    classes_queryset = SchoolClass.objects.filter(parent=parent_class)\
-                                          .annotate(student_count=Count('students'))\
-                                          .order_by('name')
-    
-    orphaned_count = parent_class.students.count()
+    # 1. Получаем подклассы (А, Б, В...) с подсчетом ТОЛЬКО АКТИВНЫХ учеников
+    classes = SchoolClass.objects.filter(parent=parent_class).annotate(
+        student_count=Count('students', filter=Q(students__status='ACTIVE'))
+    ).order_by('name')
+
+    # 2. Считаем "сирот" (учеников, привязанных к параллели напрямую, без буквы)
+    orphaned_count = Student.objects.filter(
+        school_class=parent_class,
+        status='ACTIVE'
+    ).count()
 
     context = {
-        'title': f'Классы параллели «{parent_class.name}»',
-        'school': school,
-        'parent_class': parent_class, 
-        'classes': classes_queryset,
+        'title': f'{parent_class.name} классы - {parent_class.school.name}',
+        'parent_class': parent_class,
+        'classes': classes,
         'orphaned_count': orphaned_count,
+        'school': parent_class.school
     }
-
-    if request.htmx:
-        return render(request, 'students/partials/_class_list.html', context)
-        
     return render(request, 'students/student_class_list.html', context)
 
 @login_required
@@ -178,21 +200,18 @@ def student_list_combined_view(request, parallel_id):
 
 @login_required
 def student_list_view(request, class_id):
-    """Шаг 4: Список учеников класса."""
-    school_class = get_object_or_404(SchoolClass.objects.select_related('school', 'parent'), id=class_id)
+    school_class = get_object_or_404(SchoolClass, pk=class_id)
     
-    if school_class.school not in get_accessible_schools(request.user):
-        messages.error(request, "У вас нет доступа к этому классу.")
-        return redirect('core:student_school_list')
-
-    student_list = Student.objects.filter(school_class=school_class)\
-                                  .select_related('user_profile__user')\
-                                  .order_by('last_name_ru', 'first_name_ru')
+    # ИСПРАВЛЕНИЕ: Берем только АКТИВНЫХ
+    students = Student.objects.filter(
+        school_class=school_class, 
+        status='ACTIVE'  # <--- ВОТ ЭТА МАГИЧЕСКАЯ СТРОЧКА
+    ).order_by('last_name_ru', 'first_name_ru')
 
     context = {
-        'title': f'Ученики класса {school_class.name}',
         'school_class': school_class,
-        'students': student_list,
+        'students': students,
+        'title': f"Ученики {school_class.name} класса"
     }
     return render(request, 'students/student_list_final.html', context)
 
