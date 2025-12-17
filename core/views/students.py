@@ -1017,18 +1017,22 @@ def _generate_students_excel(students_queryset, filename_prefix):
 
 @login_required
 def export_students_excel(request, class_id):
-    """Экспорт учеников класса или параллели."""
+    """Экспорт учеников класса или параллели (ТОЛЬКО АКТИВНЫЕ)."""
     school_class = get_object_or_404(SchoolClass, pk=class_id)
     
     if school_class.parent is None: 
-        # Это ПАРАЛЛЕЛЬ
+        # Это ПАРАЛЛЕЛЬ (экспорт всех 10-х классов)
         students_qs = Student.objects.filter(
-            Q(school_class=school_class) | Q(school_class__parent=school_class)
+            Q(school_class=school_class) | Q(school_class__parent=school_class),
+            status='ACTIVE'  # <--- ДОБАВЛЕН ФИЛЬТР
         )
         filename = f"{school_class.school.name}_Parallel_{school_class.name}_Students"
     else:
-        # Это ПОДКЛАСС
-        students_qs = Student.objects.filter(school_class=school_class)
+        # Это конкретный ПОДКЛАСС (экспорт 10А)
+        students_qs = Student.objects.filter(
+            school_class=school_class,
+            status='ACTIVE'  # <--- ДОБАВЛЕН ФИЛЬТР
+        )
         filename = f"{school_class.school.name}_{school_class.name}_Students"
 
     return _generate_students_excel(students_qs, filename)
@@ -1036,9 +1040,10 @@ def export_students_excel(request, class_id):
 
 @login_required
 def export_school_students_excel(request, school_id):
-    """Экспорт ВСЕХ учеников выбранной школы."""
+    """Экспорт ВСЕХ учеников выбранной школы (ТОЛЬКО АКТИВНЫЕ)."""
     school = get_object_or_404(School, pk=school_id)
     
+    # Проверка прав (суперюзер или Директор этой школы)
     if not request.user.is_superuser:
         if not (hasattr(request.user, 'profile') and 
                 request.user.profile.role == UserProfile.Role.DIRECTOR and 
@@ -1046,8 +1051,12 @@ def export_school_students_excel(request, school_id):
              messages.error(request, "У вас нет прав на экспорт данных этой школы.")
              return redirect('core:student_school_list')
 
-    students_qs = Student.objects.filter(school_class__school=school)
-    filename = f"{school.name}_ALL_STUDENTS"
+    # Берем всех учеников этой школы, у которых статус ACTIVE
+    students_qs = Student.objects.filter(
+        school_class__school=school,
+        status='ACTIVE'  # <--- ДОБАВЛЕН ФИЛЬТР
+    )
+    filename = f"{school.name}_ALL_ACTIVE_STUDENTS"
 
     return _generate_students_excel(students_qs, filename)
 
