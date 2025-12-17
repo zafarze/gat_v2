@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-800">{{ title }}</h1>
+        <a href="{% url 'core:management' %}" class="text-indigo-600 hover:text-indigo-800">
+            &larr; Назад в панель управления
+        </a>
+    </div>
+
+    <div class="bg-white shadow overflow-hidden rounded-lg">
+        {% if students %}
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ФИО</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Был в классе</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Статус</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Действия</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for student in students %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-gray-900">{{ student.full_name_ru }}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ student.student_id }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ student.school_class.name }} ({{ student.school_class.school.name }})
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        {% if student.status == 'TRANSFERRED' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                                Переведен
+                            </span>
+                        {% elif student.status == 'GRADUATED' %}
+                            <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800">
+                                Выпускник
+                            </span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        {# Кнопка ВОССТАНОВИТЬ #}
+                        <a href="{% url 'core:student_restore' student.pk %}" 
+                           onclick="return confirm('Вернуть ученика {{ student.full_name_ru }} в активный список?')"
+                           class="text-green-600 hover:text-green-900 mr-4">
+                           Восстановить
+                        </a>
+                        
+                        {# Кнопка УДАЛИТЬ НАВСЕГДА #}
+                        <a href="{% url 'core:student_delete' student.pk %}" 
+                           class="text-red-600 hover:text-red-900">
+                           Удалить
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        {% else %}
+            <div class="p-6 text-center text-gray-500">
+                В архиве пока пусто. Все ученики учатся!
+            </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

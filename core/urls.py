@@ -60,6 +60,8 @@ urlpatterns = [
     path('dashboard/students/school/<int:school_id>/export-excel/', students.export_school_students_excel, name='school_student_export_excel'),
     path('api/load-tests-for-upload/', api.load_tests_for_upload_api, name='api_load_tests_for_upload'),
     path('api/load-schools-for-upload/', api.load_schools_for_upload_api, name='api_load_schools_for_upload'),
+    path('dashboard/students/archive/', students.inactive_student_list_view, name='inactive_student_list'),
+    path('dashboard/students/<int:pk>/restore/', students.restore_student_view, name='student_restore'),
 
     # =============================================================================
     # --- ПАНЕЛЬ УПРАВЛЕНИЯ (CRUD ОПЕРАЦИИ) ---

@@ -1031,3 +1031,32 @@ def export_school_students_excel(request, school_id):
     filename = f"{school.name}_ALL_STUDENTS"
 
     return _generate_students_excel(students_qs, filename)
+
+
+@login_required
+def inactive_student_list_view(request):
+    """
+    Показывает список учеников со статусом TRANSFERRED или GRADUATED.
+    Исключает их из общей статистики, но позволяет найти при необходимости.
+    """
+    # Фильтруем только неактивных
+    inactive_students = Student.objects.filter(
+        status__in=['TRANSFERRED', 'GRADUATED']
+    ).select_related('school_class', 'school_class__school').order_by('-updated_at')
+
+    context = {
+        'title': 'Архив учеников',
+        'students': inactive_students,
+    }
+    return render(request, 'students/inactive_list.html', context)
+
+@login_required
+def restore_student_view(request, pk):
+    """
+    Кнопка 'Восстановить': возвращает ученика в статус ACTIVE.
+    """
+    student = get_object_or_404(Student, pk=pk)
+    student.status = 'ACTIVE'
+    student.save()
+    messages.success(request, f"Ученик {student.full_name_ru} восстановлен и возвращен в класс {student.school_class.name}.")
+    return redirect('core:inactive_student_list')

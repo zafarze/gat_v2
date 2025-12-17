@@ -135,5 +135,19 @@
         </div>
     </a>
 
+    {# Карточка Архив учеников (НОВАЯ) #}
+    <a href="{% url 'core:inactive_student_list' %}" class="bg-white p-6 rounded-lg shadow-md hover:shadow-lg transition-shadow flex items-start space-x-4 border-l-4 border-gray-500">
+        <div class="bg-gray-100 p-3 rounded-full">
+            {# Иконка "Архив/Коробка" #}
+            <svg class="h-6 w-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+            </svg>
+        </div>
+        <div>
+            <h2 class="text-lg font-bold text-gray-800">Архив учеников</h2>
+            <p class="text-sm text-gray-500 mt-1 h-10">Выбывшие и выпускники.</p>
+        </div>
+    </a>
+
 </div>
 {% endblock %}
