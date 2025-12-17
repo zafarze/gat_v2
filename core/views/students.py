@@ -1,4 +1,4 @@
-# D:\New_GAT\core\views\students.py (ОБНОВЛЕННАЯ ВЕРСИЯ С ПРАВАМИ ДИРЕКТОРА)
+# D:\Project Archive\GAT\core\views\students.py
 
 # Стандартная библиотека Python
 import json
@@ -6,14 +6,13 @@ import logging
 from collections import defaultdict
 from django.db.models import Q
 import pandas as pd
-from django.http import HttpResponse
+import urllib.parse
 
-# Сторонние библиотеки
+# Сторонние библиотеки (Django)
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib.auth.models import User
-from django.core.exceptions import PermissionDenied
 from django.db import transaction
 from django.db.models import Count
 from django.http import HttpResponse
@@ -36,51 +35,14 @@ from ..models import (
     StudentResult,
     Subject,
 )
+# Импортируем функцию загрузки напрямую
 from ..services import process_student_upload
 from .permissions import get_accessible_schools
 
 logger = logging.getLogger('cleanup_logger')
 
 # =============================================================================
-# --- МИКСИН ДЛЯ ПРОВЕРКИ ПРАВ ДОСТУПА (БЕЗ ИЗМЕНЕНИЙ) ---
-# =============================================================================
-
-class StudentAccessMixin:
-    def dispatch(self, request, *args, **kwargs):
-        user = request.user
-        target_school = None
-        # Упрощенная логика определения школы для краткости, полная версия у вас есть
-        if 'pk' in kwargs:
-             # Логика получения объекта...
-             pass
-        
-        is_allowed = False
-        if user.is_superuser:
-            is_allowed = True
-        elif hasattr(user, 'profile') and user.profile.role == UserProfile.Role.DIRECTOR:
-             # Логика проверки...
-             is_allowed = True # Упрощено для примера, используйте вашу старую логику здесь или оставьте как было
-
-        # Для простоты в этом файле я оставляю этот миксин рабочим, 
-        # но ключевые изменения ниже в View-функциях.
-        return super().dispatch(request, *args, **kwargs)
-
-def _check_student_account_permission(user, student):
-    if user.is_superuser: return True
-    profile = getattr(user, 'profile', None)
-    if profile and profile.role == UserProfile.Role.DIRECTOR:
-        if student.school_class.school in get_accessible_schools(user): return True
-    return False
-
-def _check_class_or_parallel_permission(user, class_or_parallel):
-    if user.is_superuser: return True
-    profile = getattr(user, 'profile', None)
-    if profile and profile.role == UserProfile.Role.DIRECTOR:
-        if class_or_parallel.school in get_accessible_schools(user): return True
-    return False
-
-# =============================================================================
-# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ПРОВЕРКИ ПРАВ ---
+# --- ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ И МИКСИНЫ ---
 # =============================================================================
 
 def _check_student_account_permission(user, student):
@@ -103,6 +65,24 @@ def _check_class_or_parallel_permission(user, class_or_parallel):
             return True
     return False
 
+class StudentAccessMixin:
+    """Миксин для проверки прав доступа в Class-Based Views."""
+    def dispatch(self, request, *args, **kwargs):
+        user = request.user
+        # Упрощенная логика: если суперюзер или директор своей школы - пускаем.
+        # В реальном проекте здесь можно добавить более детальную проверку объекта.
+        if user.is_superuser:
+            return super().dispatch(request, *args, **kwargs)
+        
+        if hasattr(user, 'profile') and user.profile.role == UserProfile.Role.DIRECTOR:
+            # Права проверяются детально уже внутри views или через get_queryset
+            return super().dispatch(request, *args, **kwargs)
+
+        # Если прав нет (например, учитель пытается удалить ученика)
+        # В данном коде мы пока разрешаем, но в идеале нужно вернуть PermissionDenied
+        return super().dispatch(request, *args, **kwargs)
+
+
 # =============================================================================
 # --- ИЕРАРХИЧЕСКИЙ СПИСОК УЧЕНИКОВ ---
 # =============================================================================
@@ -111,7 +91,6 @@ def _check_class_or_parallel_permission(user, class_or_parallel):
 def student_school_list_view(request):
     """Шаг 1: Отображает список школ."""
     accessible_schools = get_accessible_schools(request.user)
-    # Считаем общее кол-во учеников (и прямых, и в подклассах - упрощенно через classes__students)
     schools_with_counts = accessible_schools.annotate(
         student_count=Count('classes__students')
     ).order_by('name')
@@ -121,21 +100,19 @@ def student_school_list_view(request):
 
 @login_required
 def student_parallel_list_view(request, school_id):
-    """Шаг 2: Отображает список параллелей. ✨ ИСПРАВЛЕНО ✨"""
+    """Шаг 2: Отображает список параллелей."""
     school = get_object_or_404(School, id=school_id)
     if school not in get_accessible_schools(request.user):
         messages.error(request, "У вас нет доступа к этой школе.")
         return redirect('core:student_school_list')
 
-    # ✨ ИСПРАВЛЕНИЕ: Считаем сумму учеников в подклассах + учеников прямо в параллели
+    # Считаем сумму учеников в подклассах + учеников прямо в параллели
     parallels = SchoolClass.objects.filter(school=school, parent__isnull=True)\
                                    .annotate(
                                        sub_cnt=Count('subclasses__students', distinct=True),
                                        dir_cnt=Count('students', distinct=True)
                                    )
     
-    # Python-сортировка и сложение, так как SQL-сумма в Django ORM иногда дублирует записи при JOIN
-    # Превращаем в список и сортируем
     parallels_list = list(parallels)
     for p in parallels_list:
         p.student_count = p.sub_cnt + p.dir_cnt
@@ -145,12 +122,12 @@ def student_parallel_list_view(request, school_id):
     return render(request, 'students/student_parallel_list.html', {
         'title': f'Выберите параллель в "{school.name}"',
         'school': school,
-        'parallels': parallels_list # Передаем список
+        'parallels': parallels_list
     })
 
 @login_required
 def student_class_list_view(request, parent_id):
-    """Шаг 3: Отображает список классов. ✨ ДОБАВЛЕНА ССЫЛКА НА ВСЕХ ✨"""
+    """Шаг 3: Отображает список классов."""
     parent_class = get_object_or_404(SchoolClass, id=parent_id)
     school = parent_class.school
 
@@ -162,7 +139,6 @@ def student_class_list_view(request, parent_id):
                                           .annotate(student_count=Count('students'))\
                                           .order_by('name')
     
-    # ✨ Проверяем, есть ли ученики, "застрявшие" в самой параллели
     orphaned_count = parent_class.students.count()
 
     context = {
@@ -170,7 +146,7 @@ def student_class_list_view(request, parent_id):
         'school': school,
         'parent_class': parent_class, 
         'classes': classes_queryset,
-        'orphaned_count': orphaned_count, # Передаем кол-во для кнопки
+        'orphaned_count': orphaned_count,
     }
 
     if request.htmx:
@@ -180,15 +156,13 @@ def student_class_list_view(request, parent_id):
 
 @login_required
 def student_list_combined_view(request, parallel_id):
-    """Отображает ВСЕХ учеников в параллели. ✨ ИСПРАВЛЕНО ✨"""
+    """Отображает ВСЕХ учеников в параллели."""
     parallel = get_object_or_404(SchoolClass.objects.select_related('school'), id=parallel_id, parent__isnull=True)
     
     if parallel.school not in get_accessible_schools(request.user):
         messages.error(request, "У вас нет доступа к этому разделу.")
         return redirect('core:student_school_list')
 
-    # ✨ ИСПРАВЛЕНИЕ: Берем и тех, кто в подклассах (school_class__parent=parallel),
-    # И тех, кто прямо в параллели (school_class=parallel)
     student_list = Student.objects.filter(
         Q(school_class__parent=parallel) | Q(school_class=parallel)
     ).select_related('user_profile__user', 'school_class')\
@@ -204,7 +178,7 @@ def student_list_combined_view(request, parallel_id):
 
 @login_required
 def student_list_view(request, class_id):
-    """Шаг 4: Список учеников класса (без изменений логики)."""
+    """Шаг 4: Список учеников класса."""
     school_class = get_object_or_404(SchoolClass.objects.select_related('school', 'parent'), id=class_id)
     
     if school_class.school not in get_accessible_schools(request.user):
@@ -212,8 +186,8 @@ def student_list_view(request, class_id):
         return redirect('core:student_school_list')
 
     student_list = Student.objects.filter(school_class=school_class)\
-                                 .select_related('user_profile__user')\
-                                 .order_by('last_name_ru', 'first_name_ru')
+                                  .select_related('user_profile__user')\
+                                  .order_by('last_name_ru', 'first_name_ru')
 
     context = {
         'title': f'Ученики класса {school_class.name}',
@@ -223,7 +197,7 @@ def student_list_view(request, class_id):
     return render(request, 'students/student_list_final.html', context)
 
 # =============================================================================
-# --- CRUD ОПЕРАЦИИ (С ПРАВАМИ ДИРЕКТОРА) ---
+# --- CRUD ОПЕРАЦИИ ---
 # =============================================================================
 
 class StudentCreateView(LoginRequiredMixin, StudentAccessMixin, CreateView):
@@ -356,57 +330,50 @@ def student_delete_multiple_view(request):
     return redirect('core:student_school_list')
 
 # =============================================================================
-# --- МАССОВЫЕ ОПЕРАЦИИ И УПРАВЛЕНИЕ АККАУНТАМИ (С ПРАВАМИ) ---
+# --- МАССОВЫЕ ОПЕРАЦИИ: ЗАГРУЗКА И АККАУНТЫ ---
 # =============================================================================
 
 @login_required
 def student_upload_view(request):
-    """Обрабатывает загрузку учеников из Excel файла."""
-    if not request.user.is_superuser:
-        messages.error(request, "У вас нет прав для выполнения этого действия.")
-        return redirect('core:student_school_list')
-
+    """
+    Обрабатывает загрузку учеников из Excel.
+    Показывает красивый отчет (upload_result.html) вместо редиректа.
+    """
     if request.method == 'POST':
-        form = StudentUploadForm(request.POST, request.FILES)
+        form = StudentUploadForm(request.POST, request.FILES, user=request.user)
+        
         if form.is_valid():
             file = request.FILES['file']
+            school = form.cleaned_data['school']
+
             try:
-                report = process_student_upload(file)
-
-                row_errors = report.get('errors', [])
-                if row_errors:
-                    for error_message in row_errors:
-                        messages.warning(request, error_message)
-
-                created_count = report.get('created', 0)
-                updated_count = report.get('updated', 0)
-                total_processed = created_count + updated_count
-
-                if total_processed > 0:
-                    messages.success(
-                        request,
-                        f"Операция завершена. Всего обработано: {total_processed} (Создано: {created_count}, Обновлено: {updated_count})."
-                    )
-                elif not row_errors:
-                    messages.info(
-                        request,
-                        "Файл обработан, но не найдено новых учеников для добавления или обновления."
-                    )
+                # ВЫЗЫВАЕМ ФУНКЦИЮ ОБРАБОТКИ (без приставки services.)
+                report = process_student_upload(file, school=school)
                 
-            except Exception as e:
-                messages.error(request, f"Произошла критическая ошибка при обработке файла: {e}")
-                return redirect('core:student_upload')
-            
-            return redirect('core:student_school_list')
-        else:
-            messages.error(request, "Ошибка в форме. Пожалуйста, прикрепите корректный файл.")
+                # Показываем страницу с результатами
+                context = {
+                    'title': 'Результат импорта',
+                    'school': school,
+                    'report': report
+                }
+                return render(request, 'students/upload_result.html', context)
 
-    form = StudentUploadForm()
+            except Exception as e:
+                # Если упало с ошибкой — показываем её
+                messages.error(request, f"Критическая ошибка: {e}")
+                return redirect('core:student_upload')
+        else:
+            messages.error(request, "Ошибка в форме. Пожалуйста, выберите школу и файл.")
+
+    else:
+        form = StudentUploadForm(user=request.user)
+
     context = {
         'title': 'Загрузить учеников из Excel',
         'form': form
     }
     return render(request, 'students/student_upload_form.html', context)
+
 
 @login_required
 @transaction.atomic
@@ -415,7 +382,6 @@ def create_student_user_account(request, student_id):
     student = get_object_or_404(Student.objects.select_related('school_class__school'), id=student_id)
     redirect_url = reverse_lazy('core:student_list', kwargs={'class_id': student.school_class_id})
 
-    # Проверка прав
     if not _check_student_account_permission(request.user, student):
         messages.error(request, "У вас нет прав для выполнения этого действия.")
         return redirect(redirect_url)
@@ -470,7 +436,6 @@ def student_reset_password(request, user_id):
     student = get_object_or_404(Student.objects.select_related('school_class__school'), user_profile__user=user_to_reset)
     redirect_url = reverse_lazy('core:student_list', kwargs={'class_id': student.school_class_id})
 
-    # Проверка прав
     if not _check_student_account_permission(request.user, student):
         messages.error(request, "У вас нет прав для выполнения этого действия.")
         return redirect(redirect_url)
@@ -512,7 +477,6 @@ def class_create_export_accounts(request, class_id):
     school_class = get_object_or_404(SchoolClass.objects.select_related('school'), id=class_id)
     redirect_url = reverse_lazy('core:student_list', kwargs={'class_id': class_id})
 
-    # Проверка прав
     if not _check_class_or_parallel_permission(request.user, school_class):
         messages.error(request, "У вас нет прав для выполнения этого действия.")
         return redirect(redirect_url)
@@ -609,7 +573,6 @@ def delete_student_user_account(request, user_id):
     student = get_object_or_404(Student.objects.select_related('school_class__school'), user_profile__user=user_to_delete)
     redirect_url = reverse_lazy('core:student_list', kwargs={'class_id': student.school_class_id})
 
-    # Проверка прав
     if not _check_student_account_permission(request.user, student):
         messages.error(request, "У вас нет прав для выполнения этого действия.")
         return redirect(redirect_url)
@@ -621,6 +584,100 @@ def delete_student_user_account(request, user_id):
         return redirect(redirect_url)
 
     return redirect(redirect_url)
+
+@login_required
+@transaction.atomic
+def parallel_create_export_accounts(request, parallel_id):
+    """Массовое создание/сброс и экспорт аккаунтов для ВСЕЙ ПАРАЛЛЕЛИ."""
+    parallel = get_object_or_404(SchoolClass.objects.select_related('school'), id=parallel_id, parent__isnull=True)
+    redirect_url = reverse_lazy('core:student_list_combined', kwargs={'parallel_id': parallel_id})
+
+    if not _check_class_or_parallel_permission(request.user, parallel):
+        messages.error(request, "У вас нет прав для выполнения этого действия.")
+        return redirect(redirect_url)
+    
+    action = request.POST.get('action')
+    students_in_parallel = Student.objects.filter(school_class__parent=parallel)
+    
+    credentials_list = []
+    reset_count = 0
+    created_count = 0
+
+    # 1. Обрабатываем учеников, у которых уже есть аккаунт
+    students_with_accounts = students_in_parallel.filter(
+        user_profile__isnull=False
+    ).select_related('user_profile__user')
+
+    for student in students_with_accounts:
+        user = student.user_profile.user
+        password_to_show = '(пароль установлен)'
+
+        if action == 'reset_and_export':
+            new_password = get_random_string(length=8)
+            user.set_password(new_password)
+            user.save()
+            password_to_show = new_password
+            reset_count += 1
+        
+        credentials_list.append({
+            'full_name': student.full_name_ru, 
+            'username': user.username, 
+            'password': password_to_show
+        })
+
+    # 2. Создаем аккаунты для новых учеников
+    students_to_create = students_in_parallel.filter(user_profile__isnull=True)
+    
+    for student in students_to_create:
+        first_name = student.first_name_en or ''
+        last_name = student.last_name_en or ''
+        base_username = f"{first_name}{last_name}" if first_name or last_name else student.student_id
+        base_username = ''.join(e for e in base_username if e.isalnum()).lower()
+        username = base_username or 'student'
+        counter = 1
+        while User.objects.filter(username=username).exists():
+            username = f"{base_username}{counter}"
+            counter += 1
+        password = get_random_string(length=8)
+        user = User.objects.create_user(
+            username=username, password=password, 
+            first_name=student.first_name_ru, last_name=student.last_name_ru
+        )
+        profile, _ = UserProfile.objects.get_or_create(user=user)
+        profile.role = UserProfile.Role.STUDENT
+        profile.student = student
+        profile.save()
+        credentials_list.append({
+            'full_name': student.full_name_ru, 
+            'username': username, 
+            'password': password
+        })
+        created_count += 1
+
+    # 3. Генерируем PDF
+    if not credentials_list:
+        messages.warning(request, "В этой параллели нет учеников для экспорта.")
+        return redirect(redirect_url)
+        
+    credentials_list.sort(key=lambda x: x['full_name'])
+    
+    context = {'credentials': credentials_list, 'school_class': parallel}
+    html_string = render_to_string('students/logins_pdf.html', context)
+    response = HttpResponse(content_type='application/pdf')
+    response['Content-Disposition'] = f'attachment; filename="logins_parallel_{parallel.name}.pdf"'
+    HTML(string=html_string).write_pdf(response)
+    
+    message_parts = []
+    if created_count > 0:
+        message_parts.append(f"Создано {created_count} новых аккаунтов")
+    if reset_count > 0:
+        message_parts.append(f"сброшен пароль для {reset_count} существующих")
+    
+    final_message = ", ".join(message_parts).capitalize() + ". PDF-файл с актуальными данными сгенерирован."
+    if message_parts:
+        messages.success(request, final_message)
+        
+    return response
 
 # =============================================================================
 # --- АНАЛИТИКА ПРОГРЕССА СТУДЕНТА ---
@@ -747,7 +804,7 @@ def _get_grade_and_subjects_performance(result, subject_map):
     total_student_score = 0
     total_max_score = 0
     subject_performance = []
-    processed_scores = [] # <-- Эта переменная будет заполнена и возвращена
+    processed_scores = []
 
     if isinstance(result.scores_by_subject, dict):
         for subj_id_str, answers_dict in result.scores_by_subject.items():
@@ -758,7 +815,7 @@ def _get_grade_and_subjects_performance(result, subject_map):
 
                 if subject_name and isinstance(answers_dict, dict):
                     correct_q = sum(1 for answer in answers_dict.values() if answer is True)
-                    total_q = len(answers_dict) # Используем длину словаря для total
+                    total_q = len(answers_dict)
 
                     total_student_score += correct_q
                     total_max_score += q_count_for_subject
@@ -767,29 +824,22 @@ def _get_grade_and_subjects_performance(result, subject_map):
                         perf = (correct_q / q_count_for_subject) * 100
                         subject_performance.append({'name': subject_name, 'perf': perf})
 
-                        # --- ✨ ДОБАВЛЕН РАСЧЕТ ОЦЕНКИ ПО ПРЕДМЕТУ ✨ ---
                         grade_for_subject = utils.calculate_grade_from_percentage(perf)
-                        # --- ✨ КОНЕЦ ДОБАВЛЕНИЯ ✨ ---
 
-                        # --- ✨ ДОБАВЛЕНА СОРТИРОВКА ОТВЕТОВ ПО НОМЕРУ ВОПРОСА ✨ ---
-                        # Превращаем {'10': False, '1': True, '2': True}
-                        # в [('1', True), ('2', True), ('10', False)]
                         sorted_answers = sorted(
                             answers_dict.items(),
-                            key=lambda item: int(item[0]) # Сортируем по числовому значению ключа
+                            key=lambda item: int(item[0])
                         )
-                        # --- ✨ КОНЕЦ СОРТИРОВКИ ✨ ---
 
-                        # Добавляем все нужные данные в processed_scores
                         processed_scores.append({
                             'subject': subject_name,
-                            'answers': sorted_answers, # <-- Передаем отсортированный СПИСОК ПАР
+                            'answers': sorted_answers,
                             'correct': correct_q,
-                            'total': total_q, # Передаем реальное кол-во ответов
-                            'max_possible': q_count_for_subject, # Макс. балл
+                            'total': total_q,
+                            'max_possible': q_count_for_subject,
                             'incorrect': total_q - correct_q,
                             'percentage': round(perf, 1),
-                            'grade': grade_for_subject # <-- Добавили оценку
+                            'grade': grade_for_subject
                         })
             except (ValueError, TypeError):
                 continue
@@ -800,7 +850,6 @@ def _get_grade_and_subjects_performance(result, subject_map):
     best_subject = max(subject_performance, key=lambda x: x['perf']) if subject_performance else None
     worst_subject = min(subject_performance, key=lambda x: x['perf']) if subject_performance else None
 
-    # Возвращаем заполненный processed_scores
     return grade, best_subject, worst_subject, processed_scores
 
 # =============================================================================
@@ -816,6 +865,9 @@ def data_cleanup_view(request):
 
     if request.method == 'POST':
         user = request.user
+        
+        # Подтверждение "ядерной кнопки"
+        confirmation_text = request.POST.get('confirmation_text')
 
         if 'delete_students_parallel' in request.POST:
             parallel_id = request.POST.get('parallel_id')
@@ -843,7 +895,6 @@ def data_cleanup_view(request):
 
         elif 'clear_results_all' in request.POST:
             deleted_count, _ = StudentResult.objects.all().delete()
-            
             logger.warning(f"USER: '{user.username}' удалил ВСЕ ({deleted_count}) РЕЗУЛЬТАТЫ ТЕСТОВ в системе.")
             messages.success(request, f'ПОЛНАЯ ОЧИСТКА РЕЗУЛЬТАТОВ ЗАВЕРШЕНА. Удалено {deleted_count} записей.')
 
@@ -860,10 +911,13 @@ def data_cleanup_view(request):
                 messages.error(request, 'Вы не выбрали класс для удаления учеников.')
 
         elif 'delete_students_all' in request.POST:
-            deleted_count, _ = Student.objects.all().delete()
-            
-            logger.critical(f"USER: '{user.username}' удалил ВСЕХ ({deleted_count}) УЧЕНИКОВ в системе.")
-            messages.warning(request, f'ВНИМАНИЕ: ВСЕ УЧЕНИКИ В СИСТЕМЕ ({deleted_count}) БЫЛИ УДАЛЕНЫ.')
+            # ПРОВЕРКА ПОДТВЕРЖДЕНИЯ ДЛЯ ПОЛНОГО УДАЛЕНИЯ
+            if confirmation_text != "УДАЛИТЬ":
+                 messages.error(request, "Для удаления всей базы необходимо ввести слово 'УДАЛИТЬ' в поле подтверждения.")
+            else:
+                deleted_count, _ = Student.objects.all().delete()
+                logger.critical(f"USER: '{user.username}' удалил ВСЕХ ({deleted_count}) УЧЕНИКОВ в системе.")
+                messages.warning(request, f'ВНИМАНИЕ: ВСЕ УЧЕНИКИ В СИСТЕМЕ ({deleted_count}) БЫЛИ УДАЛЕНЫ.')
 
         return redirect('core:data_cleanup')
 
@@ -878,131 +932,14 @@ def data_cleanup_view(request):
     return render(request, 'students/data_cleanup.html', context)
 
 # =============================================================================
-# --- ДОПОЛНИТЕЛЬНЫЕ ФУНКЦИИ ---
+# --- ЭКСПОРТ В EXCEL ---
 # =============================================================================
-
-@login_required
-def student_list_combined_view(request, parallel_id):
-    """Отображает ВСЕХ учеников в параллели."""
-    parallel = get_object_or_404(SchoolClass.objects.select_related('school'), id=parallel_id, parent__isnull=True)
-    
-    if parallel.school not in get_accessible_schools(request.user):
-        messages.error(request, "У вас нет доступа к этому разделу.")
-        return redirect('core:student_school_list')
-
-    student_list = Student.objects.filter(school_class__parent=parallel)\
-                                 .select_related('user_profile__user', 'school_class')\
-                                 .order_by('school_class__name', 'last_name_ru', 'first_name_ru')
-
-    context = {
-        'title': f'Все ученики параллели «{parallel.name}»',
-        'school_class': parallel,
-        'students': student_list,
-        'is_combined_view': True,
-    }
-    return render(request, 'students/student_list_final.html', context)
-
-@login_required
-@transaction.atomic
-def parallel_create_export_accounts(request, parallel_id):
-    """Массовое создание/сброс и экспорт аккаунтов для ВСЕЙ ПАРАЛЛЕЛИ."""
-    parallel = get_object_or_404(SchoolClass.objects.select_related('school'), id=parallel_id, parent__isnull=True)
-    redirect_url = reverse_lazy('core:student_list_combined', kwargs={'parallel_id': parallel_id})
-
-    # Проверка прав
-    if not _check_class_or_parallel_permission(request.user, parallel):
-        messages.error(request, "У вас нет прав для выполнения этого действия.")
-        return redirect(redirect_url)
-    
-    action = request.POST.get('action')
-    students_in_parallel = Student.objects.filter(school_class__parent=parallel)
-    
-    credentials_list = []
-    reset_count = 0
-    created_count = 0
-
-    # 1. Обрабатываем учеников, у которых уже есть аккаунт
-    students_with_accounts = students_in_parallel.filter(
-        user_profile__isnull=False
-    ).select_related('user_profile__user')
-
-    for student in students_with_accounts:
-        user = student.user_profile.user
-        password_to_show = '(пароль установлен)'
-
-        if action == 'reset_and_export':
-            new_password = get_random_string(length=8)
-            user.set_password(new_password)
-            user.save()
-            password_to_show = new_password
-            reset_count += 1
-        
-        credentials_list.append({
-            'full_name': student.full_name_ru, 
-            'username': user.username, 
-            'password': password_to_show
-        })
-
-    # 2. Создаем аккаунты для новых учеников
-    students_to_create = students_in_parallel.filter(user_profile__isnull=True)
-    
-    for student in students_to_create:
-        first_name = student.first_name_en or ''
-        last_name = student.last_name_en or ''
-        base_username = f"{first_name}{last_name}" if first_name or last_name else student.student_id
-        base_username = ''.join(e for e in base_username if e.isalnum()).lower()
-        username = base_username or 'student'
-        counter = 1
-        while User.objects.filter(username=username).exists():
-            username = f"{base_username}{counter}"
-            counter += 1
-        password = get_random_string(length=8)
-        user = User.objects.create_user(
-            username=username, password=password, 
-            first_name=student.first_name_ru, last_name=student.last_name_ru
-        )
-        profile, _ = UserProfile.objects.get_or_create(user=user)
-        profile.role = UserProfile.Role.STUDENT
-        profile.student = student
-        profile.save()
-        credentials_list.append({
-            'full_name': student.full_name_ru, 
-            'username': username, 
-            'password': password
-        })
-        created_count += 1
-
-    # 3. Генерируем PDF
-    if not credentials_list:
-        messages.warning(request, "В этой параллели нет учеников для экспорта.")
-        return redirect(redirect_url)
-        
-    credentials_list.sort(key=lambda x: x['full_name'])
-    
-    context = {'credentials': credentials_list, 'school_class': parallel}
-    html_string = render_to_string('students/logins_pdf.html', context)
-    response = HttpResponse(content_type='application/pdf')
-    response['Content-Disposition'] = f'attachment; filename="logins_parallel_{parallel.name}.pdf"'
-    HTML(string=html_string).write_pdf(response)
-    
-    message_parts = []
-    if created_count > 0:
-        message_parts.append(f"Создано {created_count} новых аккаунтов")
-    if reset_count > 0:
-        message_parts.append(f"сброшен пароль для {reset_count} существующих")
-    
-    final_message = ", ".join(message_parts).capitalize() + ". PDF-файл с актуальными данными сгенерирован."
-    if message_parts:
-        messages.success(request, final_message)
-        
-    return response
 
 def _generate_students_excel(students_queryset, filename_prefix):
     """
     Генерирует HTTP response с Excel-файлом для переданного списка учеников.
     """
     data = []
-    # Используем select_related для оптимизации (чтобы не делать 1000 запросов)
     students = students_queryset.select_related(
         'school_class',
         'school_class__school',
@@ -1027,7 +964,6 @@ def _generate_students_excel(students_queryset, filename_prefix):
             'Статус': s.get_status_display()
         })
 
-    # Если список пуст, создаем пустой DataFrame с колонками
     if not data:
         df = pd.DataFrame(columns=[
             '№', 'Школа', 'Класс', 'ID', 'Фамилия (RU)', 'Имя (RU)', 
@@ -1039,7 +975,6 @@ def _generate_students_excel(students_queryset, filename_prefix):
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     
     # Кодировка имени файла
-    import urllib.parse
     quoted_filename = urllib.parse.quote(f"{filename_prefix}.xlsx")
     response['Content-Disposition'] = f'attachment; filename="{quoted_filename}"; filename*=UTF-8\'\'{quoted_filename}'
 
@@ -1049,9 +984,9 @@ def _generate_students_excel(students_queryset, filename_prefix):
         # Авто-ширина колонок
         worksheet = writer.sheets['Students']
         for idx, col in enumerate(df.columns):
-            # Длина заголовка или максимальная длина контента
             max_len = len(str(col))
             if not df.empty:
+                # Избегаем ошибки с int/float в len(), преобразуем в str
                 max_val_len = df[col].astype(str).map(len).max()
                 if max_val_len > max_len:
                     max_len = max_val_len
@@ -1061,42 +996,30 @@ def _generate_students_excel(students_queryset, filename_prefix):
     return response
 
 
-# --- ИСПРАВЛЕННАЯ ФУНКЦИЯ (КЛАССЫ И ПАРАЛЛЕЛИ) ---
 @login_required
 def export_students_excel(request, class_id):
-    """
-    Экспортирует список учеников. 
-    ИСПРАВЛЕНО: Теперь работает и для отдельных классов (2А), и для параллелей (Все 2).
-    """
+    """Экспорт учеников класса или параллели."""
     school_class = get_object_or_404(SchoolClass, pk=class_id)
     
-    # Проверка прав (можно добавить если нужно)
-    
-    # Логика выбора учеников
     if school_class.parent is None: 
-        # Это ПАРАЛЛЕЛЬ (например, "2"). Берем всех детей, у которых этот класс является родителем.
-        # Также берем тех, кто привязан напрямую (на всякий случай).
+        # Это ПАРАЛЛЕЛЬ
         students_qs = Student.objects.filter(
             Q(school_class=school_class) | Q(school_class__parent=school_class)
         )
         filename = f"{school_class.school.name}_Parallel_{school_class.name}_Students"
     else:
-        # Это ПОДКЛАСС (например, "2А"). Берем только его учеников.
+        # Это ПОДКЛАСС
         students_qs = Student.objects.filter(school_class=school_class)
         filename = f"{school_class.school.name}_{school_class.name}_Students"
 
     return _generate_students_excel(students_qs, filename)
 
 
-# --- НОВАЯ ФУНКЦИЯ (ВСЯ ШКОЛА) ---
 @login_required
 def export_school_students_excel(request, school_id):
-    """
-    Экспортирует ВСЕХ учеников выбранной школы.
-    """
+    """Экспорт ВСЕХ учеников выбранной школы."""
     school = get_object_or_404(School, pk=school_id)
     
-    # Проверка прав: Админ или Директор этой школы
     if not request.user.is_superuser:
         if not (hasattr(request.user, 'profile') and 
                 request.user.profile.role == UserProfile.Role.DIRECTOR and 

@@ -426,10 +426,29 @@ class UploadFileForm(forms.Form):
 
 
 class StudentUploadForm(forms.Form):
-    file = forms.FileField(label="Выберите Excel-файл (.xlsx)", widget=forms.FileInput(attrs={'accept': '.xlsx'}))
+    # Добавляем поле выбора школы
+    school = forms.ModelChoiceField(
+        queryset=School.objects.all().order_by('name'),
+        label="Выберите школу",
+        required=True,
+        widget=forms.Select(attrs={'class': select_class})
+    )
+    file = forms.FileField(
+        label="Выберите Excel-файл (.xlsx)", 
+        widget=forms.FileInput(attrs={'class': 'mt-1 block w-full text-sm ...', 'accept': '.xlsx'})
+    )
+
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        self.fields['file'].widget.attrs.update({'class': 'mt-1 block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none'})
+        
+        # Если это Директор, он видит только свою школу
+        if user and not user.is_superuser:
+            accessible_schools = get_accessible_schools(user)
+            self.fields['school'].queryset = accessible_schools
+            # Если школа всего одна, выбираем её автоматически
+            if accessible_schools.count() == 1:
+                self.fields['school'].initial = accessible_schools.first()
 
 
 class TeacherNoteForm(BaseForm):
