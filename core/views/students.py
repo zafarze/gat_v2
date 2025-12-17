@@ -177,13 +177,15 @@ def student_class_list_view(request, parent_id):  # <--- БЫЛО class_id, СТ
     return render(request, 'students/student_class_list.html', context)
 
 @login_required
-def student_list_combined_view(request, parent_id):
+# ИЗМЕНЕНИЕ 1: parent_id -> parallel_id (чтобы совпадало с urls.py)
+def student_list_combined_view(request, parallel_id): 
     """
     Отображает общий список учеников всей параллели (например, Все 10-е).
     Включает учеников из подклассов (10А, 10Б) и прямых (10).
     ТОЛЬКО АКТИВНЫЕ.
     """
-    parent_class = get_object_or_404(SchoolClass, pk=parent_id)
+    # ИЗМЕНЕНИЕ 2: используем parallel_id для поиска
+    parent_class = get_object_or_404(SchoolClass, pk=parallel_id)
 
     # Проверка доступа
     if parent_class.school not in get_accessible_schools(request.user):
