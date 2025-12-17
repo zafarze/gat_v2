@@ -177,24 +177,30 @@ def student_class_list_view(request, parent_id):  # <--- БЫЛО class_id, СТ
     return render(request, 'students/student_class_list.html', context)
 
 @login_required
-def student_list_combined_view(request, parallel_id):
-    """Отображает ВСЕХ учеников в параллели."""
-    parallel = get_object_or_404(SchoolClass.objects.select_related('school'), id=parallel_id, parent__isnull=True)
-    
-    if parallel.school not in get_accessible_schools(request.user):
-        messages.error(request, "У вас нет доступа к этому разделу.")
+def student_list_combined_view(request, parent_id):
+    """
+    Отображает общий список учеников всей параллели (например, Все 10-е).
+    Включает учеников из подклассов (10А, 10Б) и прямых (10).
+    ТОЛЬКО АКТИВНЫЕ.
+    """
+    parent_class = get_object_or_404(SchoolClass, pk=parent_id)
+
+    # Проверка доступа
+    if parent_class.school not in get_accessible_schools(request.user):
+        messages.error(request, "У вас нет доступа к этой школе.")
         return redirect('core:student_school_list')
 
-    student_list = Student.objects.filter(
-        Q(school_class__parent=parallel) | Q(school_class=parallel)
-    ).select_related('user_profile__user', 'school_class')\
-     .order_by('school_class__name', 'last_name_ru', 'first_name_ru')
+    # ✨ ИСПРАВЛЕНИЕ: Добавлен status='ACTIVE'
+    students = Student.objects.filter(
+        Q(school_class=parent_class) | Q(school_class__parent=parent_class),
+        status='ACTIVE'  # <--- ВОТ ЭТО УБИРАЕТ АРХИВНЫХ ИЗ ОБЩЕГО СПИСКА
+    ).select_related('school_class').order_by('school_class__name', 'last_name_ru', 'first_name_ru')
 
     context = {
-        'title': f'Все ученики параллели «{parallel.name}»',
-        'school_class': parallel,
-        'students': student_list,
-        'is_combined_view': True,
+        'school_class': parent_class,
+        'students': students,
+        'title': f"Все ученики - {parent_class.name} классы",
+        'is_combined_view': True
     }
     return render(request, 'students/student_list_final.html', context)
 
