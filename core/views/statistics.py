@@ -124,6 +124,53 @@ def statistics_view(request):
         'selected_subject_ids_json': json.dumps(request.GET.getlist('subjects')),
     }
     
+    # --- ИСПРАВЛЕНИЕ: Логика для восстановления списка классов при перезагрузке ---
+    # Если форма была отправлена, нам нужно заново собрать grouped_classes,
+    # чтобы шаблон мог отрисовать чекбоксы классов.
+    grouped_classes = defaultdict(list)
+    
+    # Пытаемся получить школы из формы (если валидна) или напрямую из GET (для первичной отрисовки)
+    selected_school_ids = request.GET.getlist('schools')
+    
+    if selected_school_ids:
+        try:
+            # Превращаем строки ID в числа
+            school_ids_int = [int(sid) for sid in selected_school_ids]
+            
+            # Получаем классы для этих школ
+            classes_qs = SchoolClass.objects.filter(
+                school_id__in=school_ids_int
+            ).select_related('parent', 'school').order_by('school__name', 'name')
+
+            is_multiple_schools = len(school_ids_int) > 1
+
+            for cls in classes_qs:
+                group_name = ""
+                if cls.parent is None:
+                    group_name = f"{cls.name} классы (Параллель)"
+                else:
+                    group_name = f"{cls.parent.name} классы"
+
+                if is_multiple_schools:
+                    group_name = f"{cls.school.name} - {group_name}"
+
+                grouped_classes[group_name].append(cls)
+        except ValueError:
+            pass
+
+    # Сортируем группы и добавляем в контекст
+    final_grouped_classes = {}
+    sorted_group_items = sorted(
+        grouped_classes.items(),
+        key=lambda item: (not item[0].endswith("(Параллель)"), item[0])
+    )
+    for group_name, classes_in_group in sorted_group_items:
+        classes_in_group.sort(key=lambda x: x.name)
+        final_grouped_classes[group_name] = classes_in_group
+    
+    context['grouped_classes'] = final_grouped_classes
+    # --- КОНЕЦ ИСПРАВЛЕНИЯ ---
+
     if not form.is_valid():
         return render(request, 'statistics/statistics.html', context)
     
@@ -132,6 +179,8 @@ def statistics_view(request):
     school_classes = form.cleaned_data.get('school_classes')
     subjects = form.cleaned_data.get('subjects')
     quarters = form.cleaned_data.get('quarters')
+    test_numbers = form.cleaned_data.get('test_numbers') # Не забываем про номера тестов
+    days = form.cleaned_data.get('days') # И дни
     
     # Если предметы не выбраны - используем все доступные
     if not subjects:
@@ -147,9 +196,14 @@ def statistics_view(request):
     
     # Применение фильтров
     if schools:
-        results_qs = results_qs.filter(gat_test__school_class__school__in=schools)
+        results_qs = results_qs.filter(gat_test__school__in=schools) # Исправлено на gat_test__school
     if school_classes:
+        # Учитываем и прямую привязку к классу, и родительскую (параллель)
         results_qs = results_qs.filter(gat_test__school_class__in=school_classes)
+    if test_numbers:
+        results_qs = results_qs.filter(gat_test__test_number__in=test_numbers)
+    if days:
+        results_qs = results_qs.filter(gat_test__day__in=days)
     
     has_results = results_qs.exists()
     context['has_results'] = has_results
@@ -221,6 +275,9 @@ def statistics_view(request):
     context['average_score'] = round((total_correct_all / total_possible_all) * 100, 1) \
         if total_possible_all > 0 else 0
     context['total_students'] = len(student_performance)
+    context['total_tests_taken'] = results_qs.count() # Всего результатов
+    
+    # KPI: Лучший и худший предмет (из processed_report)
     
     # Подготовка данных для графиков
     grade_range = range(10, 0, -1)
@@ -245,13 +302,38 @@ def statistics_view(request):
     subject_perf_data = []
     subject_perf_labels = []
     
+    # Также найдем лучший и худший предмет для KPI
+    best_subject = {'name': 'Нет', 'percentage': 0}
+    worst_subject = {'name': 'Нет', 'percentage': 100}
+    
     for subject_name, data in processed_report.items():
         if 'Итог' in data:
+            avg = data['Итог']['average_score']
             subject_perf_labels.append(subject_name)
-            subject_perf_data.append(data['Итог']['average_score'])
+            subject_perf_data.append(avg)
+            
+            if avg > best_subject['percentage']:
+                best_subject = {'name': subject_name, 'percentage': avg}
+            if avg < worst_subject['percentage']:
+                worst_subject = {'name': subject_name, 'percentage': avg}
     
+    # Если предметов не было, сбрасываем худший
+    if worst_subject['percentage'] == 100 and not subject_perf_data:
+        worst_subject['percentage'] = 0
+
     context['subject_perf_labels'] = json.dumps(subject_perf_labels, ensure_ascii=False)
     context['subject_perf_data'] = json.dumps(subject_perf_data)
     context['subject_perf_count'] = len(subject_perf_labels)
     
+    context['top_subject'] = best_subject
+    context['bottom_subject'] = worst_subject
+    
+    # Общая сводка по школе (Итог по всем предметам)
+    if grade_distribution:
+        school_summary_report = {
+            'average_score': context['average_score'],
+            'grades': dict(grade_distribution)
+        }
+        context['school_summary_report'] = school_summary_report
+
     return render(request, 'statistics/statistics.html', context)
