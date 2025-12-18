@@ -1,4 +1,4 @@
-# D:\New_GAT\core\views\api.py (ПОЛНАЯ ФИНАЛЬНАЯ ВЕРСИЯ)
+# D:\New_GAT\core\views\api.py (ФИНАЛЬНАЯ ВЕРСИЯ С РАЗДЕЛЕНИЕМ ПО ДНЯМ)
 
 import json
 import pytz
@@ -10,10 +10,10 @@ from django.contrib.auth.decorators import login_required
 from collections import defaultdict
 from accounts.forms import UserProfileForm
 
-# --- Импорты моделей (ДОБАВЛЕН QuestionCount) ---
+# --- Импорты моделей ---
 from ..models import (
     Notification, School, SchoolClass, Subject, Quarter, GatTest, Student,
-    QuestionCount  # <--- ВАЖНО: Добавлен этот импорт
+    QuestionCount
 )
 from accounts.models import UserProfile
 # --- Импорты форм ---
@@ -28,7 +28,7 @@ from .permissions import get_accessible_schools
 
 @login_required
 def load_quarters(request):
-    """ API: Загружает <option> с четвертями для выбранного года, учитывая права доступа. """
+    """ API: Загружает <option> с четвертями для выбранного года. """
     year_id = request.GET.get('year_id')
     user = request.user
     context = {'placeholder': 'Сначала выберите год'}
@@ -49,7 +49,7 @@ def load_quarters(request):
 
 @login_required
 def load_classes(request):
-    """ API: Загружает <option> с классами (в формате "Школа - Класс") для выбранных школ. """
+    """ API: Загружает <option> с классами. """
     school_ids = request.GET.getlist('school_ids[]')
     context = {'placeholder': 'Сначала выберите школу'}
     if school_ids:
@@ -59,17 +59,17 @@ def load_classes(request):
 
 @login_required
 def load_subjects(request):
-    """ API: Загружает <option> с предметами (в формате "Школа - Предмет") для выбранных школ. """
+    """ API: Загружает <option> с предметами. """
     school_ids = request.GET.getlist('school_ids[]')
     context = {'placeholder': 'Сначала выберите школу'}
     if school_ids:
-        subjects = Subject.objects.all().order_by('name') # Предметы теперь общие
+        subjects = Subject.objects.all().order_by('name') 
         context = {'items': subjects, 'placeholder': 'Выберите предмет...'}
     return render(request, 'partials/school_item_options.html', context)
 
 @login_required
 def api_load_classes_as_chips(request):
-    """ API (HTMX/JS): Загружает классы в виде "чипов" для выбранных школ. """
+    """ API (HTMX/JS): Загружает классы в виде "чипов". """
     school_ids = request.GET.getlist('schools')
     selected_class_ids = request.GET.getlist('school_classes') 
 
@@ -113,31 +113,29 @@ def api_load_classes_as_chips(request):
 @login_required
 def load_subjects_for_filters(request):
     """
-    API для подгрузки списка предметов на основе выбранных фильтров.
-    Используется в Статистике и Углубленном анализе.
+    API для подгрузки списка предметов.
+    Теперь учитывает и QuestionCount (чтобы найти предметы класса),
+    и GatTest (чтобы разделить их по дням).
     """
     try:
-        # 1. Получаем списки из GET-запроса
+        # 1. Получаем данные из запроса
         school_ids = request.GET.getlist('school_ids[]') or request.GET.getlist('schools')
         class_ids = request.GET.getlist('class_ids[]') or request.GET.getlist('school_classes')
         test_numbers = request.GET.getlist('test_numbers[]') or request.GET.getlist('test_numbers')
-        days = request.GET.getlist('days[]')
+        days = request.GET.getlist('days[]') # Получаем выбранные дни
 
-        # 2. Начинаем с базового запроса: Все предметы
+        # 2. Базовый запрос
         subjects_qs = Subject.objects.all()
+        search_ids = set() # Сюда соберем ID классов и параллелей
 
-        # 3. Фильтрация
+        # 3. Фильтр "Что вообще изучает этот класс?" (через QuestionCount)
         if class_ids:
-            # Находим сами классы
             selected_classes = SchoolClass.objects.filter(id__in=class_ids)
-            
-            # Собираем список ID для поиска (Класс + его Параллель)
             search_ids = set(class_ids)
             for cls in selected_classes:
                 if cls.parent_id:
                     search_ids.add(str(cls.parent_id))
             
-            # Ищем предметы, которые назначены этим классам (через QuestionCount)
             subjects_in_classes = QuestionCount.objects.filter(
                 school_class_id__in=search_ids
             ).values_list('subject_id', flat=True)
@@ -145,20 +143,42 @@ def load_subjects_for_filters(request):
             subjects_qs = subjects_qs.filter(id__in=subjects_in_classes)
 
         elif school_ids:
-            # Если классы не выбраны, но выбраны школы -> берем все предметы этих школ
             subjects_in_schools = QuestionCount.objects.filter(
                 school_class__school_id__in=school_ids
             ).values_list('subject_id', flat=True)
-            
             subjects_qs = subjects_qs.filter(id__in=subjects_in_schools)
 
-        # 4. Формируем ответ
+        # 4. Фильтр "Какие предметы были в этот ДЕНЬ?" (через GatTest)
+        # Применяем, только если выбраны Дни или Номера тестов
+        if days or test_numbers:
+            tests_qs = GatTest.objects.all()
+            
+            if days:
+                tests_qs = tests_qs.filter(day__in=days)
+            
+            if test_numbers:
+                tests_qs = tests_qs.filter(test_number__in=test_numbers)
+                
+            if school_ids:
+                tests_qs = tests_qs.filter(school_id__in=school_ids)
+            
+            # Если мы знаем классы, ищем тесты именно для этих классов (параллелей)
+            if search_ids:
+                tests_qs = tests_qs.filter(school_class_id__in=search_ids)
+
+            # Получаем ID предметов, которые привязаны к найденным тестам
+            subjects_in_tests = tests_qs.values_list('subjects__id', flat=True)
+            
+            # Оставляем только те предметы, которые есть в этом списке
+            subjects_qs = subjects_qs.filter(id__in=subjects_in_tests)
+
+        # 5. Результат
         subjects_data = list(subjects_qs.distinct().values('id', 'name').order_by('name'))
         
         return JsonResponse({'subjects': subjects_data})
 
     except Exception as e:
-        print(f"Error in load_subjects_for_filters: {e}")
+        print(f"ERROR in load_subjects_for_filters: {e}")
         return JsonResponse({'subjects': [], 'error': str(e)})
 
 # =============================================================================
@@ -167,7 +187,6 @@ def load_subjects_for_filters(request):
 
 @login_required
 def load_class_and_subjects_for_gat(request):
-    """ HTMX: Загружает поля 'Класс (Параллель)' и 'Предметы' для формы GatTest. """
     school = None
     school_id = request.GET.get('school')
 
@@ -182,7 +201,6 @@ def load_class_and_subjects_for_gat(request):
 
 @login_required
 def load_fields_for_qc(request):
-    """ HTMX: Загружает поля 'Класс (Параллель)' и 'Предмет' для формы QuestionCount. """
     school_id = request.GET.get('school')
     school = None
 
@@ -201,7 +219,6 @@ def load_fields_for_qc(request):
 
 @login_required
 def get_notifications_api(request):
-    """ API: Возвращает непрочитанные уведомления пользователя. """
     dushanbe_tz = pytz.timezone("Asia/Dushanbe")
     notifications = Notification.objects.filter(user=request.user, is_read=False).order_by('-created_at')
     results = []
@@ -218,7 +235,6 @@ def get_notifications_api(request):
 
 @login_required
 def mark_notifications_as_read(request):
-    """ API: Помечает все уведомления пользователя как прочитанные. """
     if request.method == 'POST':
         Notification.objects.filter(user=request.user, is_read=False).update(is_read=True)
         return JsonResponse({'status': 'success'})
@@ -230,7 +246,6 @@ def mark_notifications_as_read(request):
 
 @login_required
 def header_search_api(request):
-    """ API: Поиск по студентам и тестам в шапке сайта с учетом прав. """
     query = request.GET.get('q', '').strip()
     results = []
     user = request.user
@@ -268,7 +283,6 @@ def header_search_api(request):
 
 @login_required
 def toggle_school_access_api(request):
-    """ API для управления доступом Директора к Школе. """
     if request.method == 'POST' and request.user.is_staff:
         director_id = request.POST.get('director_id')
         school_id = request.POST.get('school_id')
@@ -287,7 +301,6 @@ def toggle_school_access_api(request):
 
 @login_required
 def toggle_subject_access_api(request):
-    """ API для управления доступом Эксперта к Предмету. """
     if request.method == 'POST' and request.user.is_staff:
         expert_id = request.POST.get('expert_id')
         subject_id = request.POST.get('subject_id')
@@ -306,19 +319,14 @@ def toggle_subject_access_api(request):
 
 @login_required
 def api_load_schools(request):
-    """
-    API: Загружает школы, в которых проводились тесты в выбранных четвертях.
-    """
     quarter_ids = request.GET.getlist('quarters[]')
     user = request.user
-    
     schools_qs = get_accessible_schools(user)
     
     if quarter_ids:
         school_ids_with_tests = GatTest.objects.filter(
             quarter_id__in=quarter_ids
         ).values_list('school_id', flat=True).distinct()
-        
         schools_qs = schools_qs.filter(id__in=school_ids_with_tests)
         
     context = {
@@ -329,31 +337,21 @@ def api_load_schools(request):
 
 @login_required
 def api_load_subjects_for_user_form(request):
-    """ HTMX: Загружает поле 'Предметы' для формы UserProfileForm. """
     school_id = request.GET.get('school')
     form = UserProfileForm()
-    # Предметы больше не зависят от школы
     form.fields['subjects'].queryset = Subject.objects.all().order_by('name')
     return render(request, 'accounts/partials/_user_form_subjects.html', {'profile_form': form})
 
 @login_required
 def load_schools_for_upload_api(request):
-    """
-    API: Шаг 2. Возвращает список школ (<option>), у которых были тесты в выбранной четверти.
-    """
     quarter_id = request.GET.get('quarter_id')
     schools = School.objects.none()
-    
-    # Получаем доступные пользователю школы (чтобы директор не видел чужие)
     accessible_schools = get_accessible_schools(request.user)
 
     if quarter_id:
-        # Находим ID школ, у которых есть тесты в этой четверти
         school_ids_with_tests = GatTest.objects.filter(
             quarter_id=quarter_id
         ).values_list('school_id', flat=True).distinct()
-        
-        # Фильтруем доступные школы по этому списку
         schools = accessible_schools.filter(id__in=school_ids_with_tests).order_by('name')
 
     return render(request, 'partials/options.html', {'items': schools, 'placeholder': 'Выберите школу...'})
@@ -361,22 +359,15 @@ def load_schools_for_upload_api(request):
 
 @login_required
 def load_tests_for_upload_api(request):
-    """
-    API: Шаг 3. Возвращает список тестов (<option>) для выбранной школы И/ИЛИ четверти.
-    (ОБЪЕДИНЕННАЯ ФУНКЦИЯ ВМЕСТО ДВУХ ДУБЛИКАТОВ)
-    """
     quarter_id = request.GET.get('quarter_id')
     school_id = request.GET.get('school_id')
-    
     tests = GatTest.objects.none()
 
-    # Фильтруем только если выбрана четверть, школа опциональна
     if quarter_id:
         try:
             qs = GatTest.objects.filter(quarter_id=quarter_id)
             if school_id:
                 qs = qs.filter(school_id=school_id)
-            
             tests = qs.order_by('-test_date')
         except (ValueError, TypeError):
             pass
