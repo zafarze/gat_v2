@@ -1,4 +1,4 @@
-# D:\New_GAT\core\views\api.py (ПОЛНАЯ ОБНОВЛЕННАЯ ВЕРСИЯ)
+# D:\New_GAT\core\views\api.py (ПОЛНАЯ ФИНАЛЬНАЯ ВЕРСИЯ)
 
 import json
 import pytz
@@ -9,11 +9,11 @@ from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from collections import defaultdict
 from accounts.forms import UserProfileForm
-from ..models import SchoolClass, GatTest, Subject
 
-# --- Импорты моделей ---
+# --- Импорты моделей (ДОБАВЛЕН QuestionCount) ---
 from ..models import (
-    Notification, School, SchoolClass, Subject, Quarter, GatTest, Student
+    Notification, School, SchoolClass, Subject, Quarter, GatTest, Student,
+    QuestionCount  # <--- ВАЖНО: Добавлен этот импорт
 )
 from accounts.models import UserProfile
 # --- Импорты форм ---
@@ -63,7 +63,7 @@ def load_subjects(request):
     school_ids = request.GET.getlist('school_ids[]')
     context = {'placeholder': 'Сначала выберите школу'}
     if school_ids:
-        subjects = Subject.objects.filter(school_id__in=school_ids).select_related('school').order_by('school__name', 'name')
+        subjects = Subject.objects.all().order_by('name') # Предметы теперь общие
         context = {'items': subjects, 'placeholder': 'Выберите предмет...'}
     return render(request, 'partials/school_item_options.html', context)
 
@@ -117,34 +117,29 @@ def load_subjects_for_filters(request):
     Используется в Статистике и Углубленном анализе.
     """
     try:
-        # 1. Получаем списки из GET-запроса (обратите внимание на [])
-        school_ids = request.GET.getlist('school_ids[]')
-        class_ids = request.GET.getlist('class_ids[]')
-        
-        # Для совместимости: JS иногда шлет 'schools', иногда 'school_ids[]'
-        if not school_ids: 
-            school_ids = request.GET.getlist('schools')
-        if not class_ids: 
-            class_ids = request.GET.getlist('school_classes')
-
-        test_numbers = request.GET.getlist('test_numbers[]')
-        # Если в GET пришли просто 'test_numbers', берем их
-        if not test_numbers:
-            test_numbers = request.GET.getlist('test_numbers')
-            
+        # 1. Получаем списки из GET-запроса
+        school_ids = request.GET.getlist('school_ids[]') or request.GET.getlist('schools')
+        class_ids = request.GET.getlist('class_ids[]') or request.GET.getlist('school_classes')
+        test_numbers = request.GET.getlist('test_numbers[]') or request.GET.getlist('test_numbers')
         days = request.GET.getlist('days[]')
 
         # 2. Начинаем с базового запроса: Все предметы
         subjects_qs = Subject.objects.all()
 
         # 3. Фильтрация
-        # Логика: Предмет должен быть доступен в выбранных классах (через QuestionCount)
-        
         if class_ids:
-            # Если выбраны классы, ищем предметы, которые назначены этим классам (через QuestionCount)
-            # Это самый надежный способ узнать, какие предметы "изучает" класс.
+            # Находим сами классы
+            selected_classes = SchoolClass.objects.filter(id__in=class_ids)
+            
+            # Собираем список ID для поиска (Класс + его Параллель)
+            search_ids = set(class_ids)
+            for cls in selected_classes:
+                if cls.parent_id:
+                    search_ids.add(str(cls.parent_id))
+            
+            # Ищем предметы, которые назначены этим классам (через QuestionCount)
             subjects_in_classes = QuestionCount.objects.filter(
-                school_class_id__in=class_ids
+                school_class_id__in=search_ids
             ).values_list('subject_id', flat=True)
             
             subjects_qs = subjects_qs.filter(id__in=subjects_in_classes)
@@ -157,32 +152,13 @@ def load_subjects_for_filters(request):
             
             subjects_qs = subjects_qs.filter(id__in=subjects_in_schools)
 
-        # Дополнительная фильтрация по номерам тестов (если выбраны)
-        # Например: показать только предметы, которые были в GAT-1
-        #if test_numbers:
-            # Находим тесты с этими номерами
-         #   tests_qs = GatTest.objects.filter(test_number__in=test_numbers)
-            
-            # Если выбраны еще и классы/школы, уточняем тесты, чтобы не брать чужие
-          #  if class_ids:
-           #     tests_qs = tests_qs.filter(school_class_id__in=class_ids)
-            #elif school_ids:
-             #   tests_qs = tests_qs.filter(school_class__school_id__in=school_ids)
-                
-            # Получаем предметы из этих тестов
-            # Используем reverse relation 'subjects' (Many-to-Many в GatTest)
-            #subjects_in_tests = tests_qs.values_list('subjects__id', flat=True)
-            #subjects_qs = subjects_qs.filter(id__in=subjects_in_tests)
-
         # 4. Формируем ответ
-        # distinct() обязателен, чтобы не было дублей (Математика, Математика...)
         subjects_data = list(subjects_qs.distinct().values('id', 'name').order_by('name'))
         
         return JsonResponse({'subjects': subjects_data})
 
     except Exception as e:
         print(f"Error in load_subjects_for_filters: {e}")
-        # Возвращаем пустой список или ошибку, чтобы JS не ломался
         return JsonResponse({'subjects': [], 'error': str(e)})
 
 # =============================================================================
@@ -191,9 +167,7 @@ def load_subjects_for_filters(request):
 
 @login_required
 def load_class_and_subjects_for_gat(request):
-    """
-    HTMX: Загружает поля 'Класс (Параллель)' и 'Предметы' для формы GatTest.
-    """
+    """ HTMX: Загружает поля 'Класс (Параллель)' и 'Предметы' для формы GatTest. """
     school = None
     school_id = request.GET.get('school')
 
@@ -208,9 +182,7 @@ def load_class_and_subjects_for_gat(request):
 
 @login_required
 def load_fields_for_qc(request):
-    """
-    HTMX: Загружает поля 'Класс (Параллель)' и 'Предмет' для формы QuestionCount.
-    """
+    """ HTMX: Загружает поля 'Класс (Параллель)' и 'Предмет' для формы QuestionCount. """
     school_id = request.GET.get('school')
     school = None
 
@@ -336,7 +308,6 @@ def toggle_subject_access_api(request):
 def api_load_schools(request):
     """
     API: Загружает школы, в которых проводились тесты в выбранных четвертях.
-    Возвращает HTML-фрагмент с "чипами".
     """
     quarter_ids = request.GET.getlist('quarters[]')
     user = request.user
@@ -358,38 +329,12 @@ def api_load_schools(request):
 
 @login_required
 def api_load_subjects_for_user_form(request):
-    """
-    HTMX: Загружает поле 'Предметы' для формы UserProfileForm.
-    (Исправлено: предметы больше не фильтруются по школе)
-    """
+    """ HTMX: Загружает поле 'Предметы' для формы UserProfileForm. """
     school_id = request.GET.get('school')
-    
     form = UserProfileForm()
-    
     # Предметы больше не зависят от школы
     form.fields['subjects'].queryset = Subject.objects.all().order_by('name')
-        
     return render(request, 'accounts/partials/_user_form_subjects.html', {'profile_form': form})
-
-@login_required
-def load_tests_for_upload_api(request):
-    """
-    API: Возвращает список тестов (<option>) для выбранной четверти.
-    Используется на странице загрузки результатов.
-    """
-    quarter_id = request.GET.get('quarter_id')
-    tests = GatTest.objects.none()
-
-    if quarter_id:
-        try:
-            # Фильтруем тесты по выбранной четверти
-            tests = GatTest.objects.filter(quarter_id=quarter_id).order_by('-test_date')
-        except (ValueError, TypeError):
-            pass
-    
-    # Используем существующий шаблон partials/options.html
-    # (он у вас уже используется в функции load_quarters)
-    return render(request, 'partials/options.html', {'items': tests, 'placeholder': 'Выберите тест...'})
 
 @login_required
 def load_schools_for_upload_api(request):
@@ -417,19 +362,22 @@ def load_schools_for_upload_api(request):
 @login_required
 def load_tests_for_upload_api(request):
     """
-    API: Шаг 3. Возвращает список тестов (<option>) для выбранной школы И четверти.
+    API: Шаг 3. Возвращает список тестов (<option>) для выбранной школы И/ИЛИ четверти.
+    (ОБЪЕДИНЕННАЯ ФУНКЦИЯ ВМЕСТО ДВУХ ДУБЛИКАТОВ)
     """
     quarter_id = request.GET.get('quarter_id')
     school_id = request.GET.get('school_id')
     
     tests = GatTest.objects.none()
 
-    if quarter_id and school_id:
+    # Фильтруем только если выбрана четверть, школа опциональна
+    if quarter_id:
         try:
-            tests = GatTest.objects.filter(
-                quarter_id=quarter_id,
-                school_id=school_id
-            ).order_by('-test_date')
+            qs = GatTest.objects.filter(quarter_id=quarter_id)
+            if school_id:
+                qs = qs.filter(school_id=school_id)
+            
+            tests = qs.order_by('-test_date')
         except (ValueError, TypeError):
             pass
     
