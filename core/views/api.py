@@ -159,20 +159,20 @@ def load_subjects_for_filters(request):
 
         # Дополнительная фильтрация по номерам тестов (если выбраны)
         # Например: показать только предметы, которые были в GAT-1
-        if test_numbers:
+        #if test_numbers:
             # Находим тесты с этими номерами
-            tests_qs = GatTest.objects.filter(test_number__in=test_numbers)
+         #   tests_qs = GatTest.objects.filter(test_number__in=test_numbers)
             
             # Если выбраны еще и классы/школы, уточняем тесты, чтобы не брать чужие
-            if class_ids:
-                tests_qs = tests_qs.filter(school_class_id__in=class_ids)
-            elif school_ids:
-                tests_qs = tests_qs.filter(school_class__school_id__in=school_ids)
+          #  if class_ids:
+           #     tests_qs = tests_qs.filter(school_class_id__in=class_ids)
+            #elif school_ids:
+             #   tests_qs = tests_qs.filter(school_class__school_id__in=school_ids)
                 
             # Получаем предметы из этих тестов
             # Используем reverse relation 'subjects' (Many-to-Many в GatTest)
-            subjects_in_tests = tests_qs.values_list('subjects__id', flat=True)
-            subjects_qs = subjects_qs.filter(id__in=subjects_in_tests)
+            #subjects_in_tests = tests_qs.values_list('subjects__id', flat=True)
+            #subjects_qs = subjects_qs.filter(id__in=subjects_in_tests)
 
         # 4. Формируем ответ
         # distinct() обязателен, чтобы не было дублей (Математика, Математика...)
