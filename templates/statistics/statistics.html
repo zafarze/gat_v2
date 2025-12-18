@@ -95,13 +95,13 @@
         {% if subject_perf_labels and subject_perf_data %}
         <div class="bg-white p-6 rounded-lg shadow">
             <h3 class="text-lg font-medium leading-6 text-gray-900">Успеваемость по предметам</h3>
-            <div class="relative" style="height: calc({{ subject_perf_count }} * 35px + 80px);">
-                <canvas id="subjectPerformanceChart" class="mt-4"></canvas>
+            <div class="relative">
+                <canvas id="subjectPerformanceChart"></canvas>
             </div>
         </div>
         {% endif %}
 
-        {# --- ОСТАЛЬНЫЕ БЛОКИ (ОБЩАЯ УСПЕВАЕМОСТЬ, ОТЧЕТ) ОСТАЮТСЯ БЕЗ ИЗМЕНЕНИЙ --- #}
+        {# --- ОСТАЛЬНЫЕ БЛОКИ --- #}
         {% if school_summary_report.grades %}
         <div class="bg-white p-6 rounded-lg shadow">
             <h2 class="text-xl font-bold text-gray-800 mb-4">Общая успеваемость (Итог)</h2>
@@ -251,11 +251,19 @@ document.addEventListener('DOMContentLoaded', function () {
     {% if has_results and subject_perf_labels and subject_perf_data %}
         try {
             const subjectPerfCtx = document.getElementById('subjectPerformanceChart').getContext('2d');
+            
+            // --- НОВОЕ: Динамический расчет высоты ---
+            const labels = {{ subject_perf_labels|safe }};
+            // 35px на каждый бар + 80px на отступы
+            const newHeight = (labels.length * 35 + 80); 
+            // Устанавливаем высоту родителю
+            subjectPerfCtx.canvas.parentNode.style.height = newHeight + 'px';
+            
             if (subjectPerfCtx) {
                 new Chart(subjectPerfCtx, {
                     type: 'bar',
                     data: {
-                        labels: {{ subject_perf_labels|safe }},
+                        labels: labels,
                         datasets: [{ label: 'Успеваемость', data: {{ subject_perf_data|safe }}, backgroundColor: 'rgba(99, 102, 241, 0.8)', borderColor: 'rgba(99, 102, 241, 1)', borderWidth: 1 }]
                     },
                     options: {

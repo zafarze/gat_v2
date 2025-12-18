@@ -113,74 +113,77 @@ def api_load_classes_as_chips(request):
 @login_required
 def load_subjects_for_filters(request):
     """
-    API (JavaScript/HTMX): Загружает предметы в виде JSON для фильтров.
-    (Обновлено: для Эксперта и Учителя возвращает только их предметы).
+    API для подгрузки списка предметов на основе выбранных фильтров.
+    Используется в Статистике и Углубленном анализе.
     """
-    user = request.user
-    profile = getattr(user, 'profile', None)
-
-    # ---> ПРОВЕРКА РОЛИ ЭКСПЕРТА ИЛИ УЧИТЕЛЯ <---
-    is_expert = profile and profile.role == UserProfile.Role.EXPERT
-    is_teacher_or_homeroom = profile and profile.role in [UserProfile.Role.TEACHER, UserProfile.Role.HOMEROOM_TEACHER]
-
-    if is_expert or is_teacher_or_homeroom:
-         # Если пользователь - Эксперт или Учитель, игнорируем фильтры
-         # и возвращаем предметы, назначенные ИМЕННО ЭТОМУ пользователю
-         subjects = profile.subjects.all().order_by('name')
-         subjects_data = [{
-             'id': subject.id,
-             'name': subject.name,
-             'abbreviation': subject.abbreviation or subject.name[:3].upper()
-         } for subject in subjects]
-         # Сразу возвращаем JSON с предметами Эксперта/Учителя
-         return JsonResponse({'subjects': subjects_data})
-    # ---> КОНЕЦ ПРОВЕРКИ <---
-
-    # --- Если пользователь НЕ Эксперт/Учитель (Админ/Директор), выполняем старую логику ---
-    school_ids = request.GET.getlist('school_ids[]')
-    class_ids = request.GET.getlist('class_ids[]')
-    test_numbers = request.GET.getlist('test_numbers[]')
-    days = request.GET.getlist('days[]')
-
-    # Проверяем наличие обязательных параметров для Админа/Директора
-    if not class_ids or not test_numbers or not school_ids:
-        return JsonResponse({'subjects': []})
-
     try:
-        # 1. Находим ID параллелей
-        selected_classes = SchoolClass.objects.filter(id__in=class_ids)
-        parent_class_ids = set(selected_classes.values_list('parent_id', flat=True))
-        parent_class_ids.update(selected_classes.filter(parent__isnull=True).values_list('id', flat=True))
-        parent_class_ids.discard(None)
+        # 1. Получаем списки из GET-запроса (обратите внимание на [])
+        school_ids = request.GET.getlist('school_ids[]')
+        class_ids = request.GET.getlist('class_ids[]')
+        
+        # Для совместимости: JS иногда шлет 'schools', иногда 'school_ids[]'
+        if not school_ids: 
+            school_ids = request.GET.getlist('schools')
+        if not class_ids: 
+            class_ids = request.GET.getlist('school_classes')
 
-        # 2. Находим тесты
-        matching_tests = GatTest.objects.filter(
-            school_id__in=school_ids,
-            school_class_id__in=parent_class_ids,
-            test_number__in=test_numbers
-        )
-        if days:
-            matching_tests = matching_tests.filter(day__in=days)
+        test_numbers = request.GET.getlist('test_numbers[]')
+        # Если в GET пришли просто 'test_numbers', берем их
+        if not test_numbers:
+            test_numbers = request.GET.getlist('test_numbers')
+            
+        days = request.GET.getlist('days[]')
 
-        # 3. Получаем ID предметов из тестов
-        subject_ids = matching_tests.values_list('subjects', flat=True).distinct()
-        subject_ids = [sid for sid in subject_ids if sid is not None]
+        # 2. Начинаем с базового запроса: Все предметы
+        subjects_qs = Subject.objects.all()
 
-        # 4. Загружаем объекты Subject
-        subjects = Subject.objects.filter(id__in=subject_ids).order_by('name')
+        # 3. Фильтрация
+        # Логика: Предмет должен быть доступен в выбранных классах (через QuestionCount)
+        
+        if class_ids:
+            # Если выбраны классы, ищем предметы, которые назначены этим классам (через QuestionCount)
+            # Это самый надежный способ узнать, какие предметы "изучает" класс.
+            subjects_in_classes = QuestionCount.objects.filter(
+                school_class_id__in=class_ids
+            ).values_list('subject_id', flat=True)
+            
+            subjects_qs = subjects_qs.filter(id__in=subjects_in_classes)
 
-        # Формируем JSON-ответ
-        subjects_data = [{
-            'id': subject.id,
-            'name': subject.name,
-            'abbreviation': subject.abbreviation or subject.name[:3].upper()
-        } for subject in subjects]
+        elif school_ids:
+            # Если классы не выбраны, но выбраны школы -> берем все предметы этих школ
+            subjects_in_schools = QuestionCount.objects.filter(
+                school_class__school_id__in=school_ids
+            ).values_list('subject_id', flat=True)
+            
+            subjects_qs = subjects_qs.filter(id__in=subjects_in_schools)
 
+        # Дополнительная фильтрация по номерам тестов (если выбраны)
+        # Например: показать только предметы, которые были в GAT-1
+        if test_numbers:
+            # Находим тесты с этими номерами
+            tests_qs = GatTest.objects.filter(test_number__in=test_numbers)
+            
+            # Если выбраны еще и классы/школы, уточняем тесты, чтобы не брать чужие
+            if class_ids:
+                tests_qs = tests_qs.filter(school_class_id__in=class_ids)
+            elif school_ids:
+                tests_qs = tests_qs.filter(school_class__school_id__in=school_ids)
+                
+            # Получаем предметы из этих тестов
+            # Используем reverse relation 'subjects' (Many-to-Many в GatTest)
+            subjects_in_tests = tests_qs.values_list('subjects__id', flat=True)
+            subjects_qs = subjects_qs.filter(id__in=subjects_in_tests)
+
+        # 4. Формируем ответ
+        # distinct() обязателен, чтобы не было дублей (Математика, Математика...)
+        subjects_data = list(subjects_qs.distinct().values('id', 'name').order_by('name'))
+        
         return JsonResponse({'subjects': subjects_data})
 
     except Exception as e:
         print(f"Error in load_subjects_for_filters: {e}")
-        return JsonResponse({'error': f'Internal server error: {e}'}, status=500)
+        # Возвращаем пустой список или ошибку, чтобы JS не ломался
+        return JsonResponse({'subjects': [], 'error': str(e)})
 
 # =============================================================================
 # --- API ДЛЯ ФОРМ CRUD (HTMX) ---
