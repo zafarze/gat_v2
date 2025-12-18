@@ -3,12 +3,19 @@
 import pandas as pd
 import re
 import os
+import uuid  # ✨ Добавлено для генерации временных ID, если нужно
+from collections import defaultdict  # ✨ Добавлено для оптимизации
 from datetime import datetime
+
 from django.db import transaction, models
+from django.db.models import Q
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.storage import default_storage
 
-from .models import Student, StudentResult, GatTest, Question, SchoolClass, Subject
+from .models import (
+    Student, StudentResult, GatTest, Question, 
+    SchoolClass, Subject, StudentAnswer # ✨ Убедитесь, что StudentAnswer импортирован
+)
 # Импортируем утилиту для расчета оценки
 from .utils import calculate_grade_from_percentage 
 
@@ -69,6 +76,112 @@ def extract_test_date_from_excel(uploaded_file):
                 continue
     return None
 
+# ✨ НОВАЯ ФУНКЦИЯ ДЛЯ УМНОГО ПОИСКА ✨
+def _get_or_create_student_smart(row_data, test_school_class, test_school):
+    """
+    Ищет студента. Если в Excel указана ПАРАЛЛЕЛЬ (например, 7),
+    а ученик числится в ПОДКЛАССЕ (например, 7А), этот код его НАЙДЕТ.
+    """
+    # Извлекаем данные из строки
+    raw_id = row_data.get('student_id')
+    student_id = str(raw_id).strip() if pd.notna(raw_id) else None
+    if student_id and student_id.endswith('.0'): student_id = student_id[:-2]
+    if student_id and student_id.lower() in ['nan', 'none', '', '0']: student_id = None
+    if student_id and student_id.isdigit() and len(student_id) < 6: student_id = student_id.zfill(6)
+
+    # Очищаем имена от пробелов и нормализуем
+    last_name = normalize_cyrillic(str(row_data.get('last_name', '')).strip()).title()
+    first_name = normalize_cyrillic(str(row_data.get('first_name', '')).strip()).title()
+    
+    # Класс из Excel (если есть)
+    excel_class_name = str(row_data.get('class_name', '')).strip()
+
+    # 1. Сначала пробуем найти по ID (самый надежный способ)
+    if student_id:
+        student = Student.objects.filter(student_id=student_id).first()
+        if student:
+            # Если нашли по ID, обновляем данные, если они изменились
+            updated = False
+            if last_name and (student.last_name_ru != last_name):
+                student.last_name_ru = last_name
+                updated = True
+            if first_name and (student.first_name_ru != first_name):
+                student.first_name_ru = first_name
+                updated = True
+            
+            # ВАЖНО: Если мы нашли ученика в 7А, а в файле пришел 7,
+            # мы НЕ меняем ему класс, оставляем 7А (так точнее).
+            
+            if updated:
+                student.save()
+            return student, False, updated
+
+    # 2. Если ID нет или не нашли — ищем по ФИО и Классу (Умный поиск)
+    # Это решает проблему: "Зокиршоев Зафар 7А" (БД) vs "Зокиршоев Зафар 7" (Excel)
+    
+    if last_name and first_name:
+        # Собираем список классов, где будем искать
+        classes_to_search = [test_school_class]
+        
+        # Если тест для Параллели (например, 7), добавляем все подклассы (7А, 7Б...)
+        if test_school_class.parent is None:
+            subclasses = test_school_class.subclasses.all()
+            classes_to_search.extend(subclasses)
+
+        # Ищем совпадение по Имени + Фамилии + (Класс ИЛИ его подклассы)
+        student = Student.objects.filter(
+            school_class__in=classes_to_search, # Ищем и в 7, и в 7А, и в 7Б
+            last_name_ru__iexact=last_name,     # Игнорируем регистр
+            first_name_ru__iexact=first_name
+        ).first()
+
+        if student:
+            # Нашли! Обновляем ID если в базе его не было, а в файле пришел
+            updated = False
+            if student_id and student.student_id != student_id:
+                student.student_id = student_id
+                updated = True
+                student.save()
+            return student, False, updated
+
+    # 3. Если совсем не нашли — создаем нового
+    # Формируем ID, если его нет
+    final_id = student_id if student_id else f"TEMP-{uuid.uuid4().hex[:8].upper()}"
+    
+    # Определяем класс для создания.
+    # Если в Excel указан класс (например, "7А"), пытаемся найти его в школе
+    target_class = test_school_class
+    if excel_class_name:
+        # Пробуем найти класс по имени внутри школы теста
+        # Сначала формируем полное имя (если в excel просто "А", а параллель "10", ищем "10А")
+        # Или если в excel "10А", ищем "10А"
+        
+        # Нормализуем
+        norm_excel_class = normalize_cyrillic(excel_class_name).upper()
+        
+        # Поиск
+        found_class = SchoolClass.objects.filter(
+            school=test_school, 
+            name__iexact=norm_excel_class,
+            parent=test_school_class # Должен быть в этой параллели, если test_school_class это параллель
+        ).first()
+        
+        if not found_class and test_school_class.parent is None:
+             # Попробуем найти просто по имени в школе (если вдруг параллель не совпала в фильтре)
+             found_class = SchoolClass.objects.filter(school=test_school, name__iexact=norm_excel_class).first()
+
+        if found_class:
+            target_class = found_class
+
+    new_student = Student.objects.create(
+        student_id=final_id,
+        school_class=target_class,
+        last_name_ru=last_name if last_name else "Unknown",
+        first_name_ru=first_name if first_name else "Unknown",
+        status='ACTIVE'
+    )
+    return new_student, True, False
+
 # =============================================================================
 # --- 1. ЗАГРУЗКА СПИСКА УЧЕНИКОВ (Импорт базы) ---
 # =============================================================================
@@ -77,11 +190,6 @@ def process_student_upload(excel_file, school=None):
     """
     Универсальная загрузка списка студентов (RU, TJ, EN).
     Используется в разделе "Ученики -> Импорт".
-    
-    АРГУМЕНТЫ:
-      excel_file: Загруженный файл.
-      school: Объект School. Если передан, классы ищутся ТОЛЬКО в этой школе.
-              Это предотвращает конфликты имен классов между школами.
     """
     try:
         df = pd.read_excel(excel_file, dtype=str)
@@ -356,7 +464,7 @@ def analyze_student_results(excel_file):
 def process_student_results_upload(gat_test, excel_file_path, overrides_map=None):
     """
     Основная функция загрузки результатов GAT.
-    Использует utils.py для подсчета средней оценки по загруженному пакету.
+    ВКЛЮЧАЕТ ОПТИМИЗАЦИЮ: bulk_create для ответов и Smart Search для учеников.
     """
     if overrides_map is None:
         overrides_map = {}
@@ -396,84 +504,53 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
             subjects_map[normalize_cyrillic(s.abbreviation.strip().lower())] = s
 
     # 2. Вычисляем Максимальный балл теста (для расчета процента)
-    # Суммируем баллы всех вопросов теста. Если вопросов нет, будет 0.
     max_test_score = gat_test.questions.aggregate(total=models.Sum('points'))['total'] or 0
+
+    # ✨ ОПТИМИЗАЦИЯ BULK: Списки для массового сохранения
+    student_answers_to_create = [] # Сюда копим ответы
+    processed_result_ids = []      # Сюда копим ID обработанных результатов
+
+    # Получаем школу и класс теста для "Умного поиска"
+    test_school = gat_test.school
+    test_school_class = gat_test.school_class
 
     with transaction.atomic():
         for index, row in df.iterrows():
-            row_num = index + 2 
-            
-            # --- Валидация ID ---
-            raw_id = row.get('student_id')
-            if pd.isna(raw_id): continue
-            student_id = str(raw_id).strip()
-            if student_id.lower() in ['nan', 'none', '', '0']: continue
-            if student_id.endswith('.0'): student_id = student_id[:-2]
-            if student_id.isdigit() and not student_id.startswith('0') and len(student_id) < 6:
-                student_id = student_id.zfill(6)
-            if not student_id: continue
-            
-            student = Student.objects.filter(student_id=student_id).first()
+            row_num = index + 2
+            row_dict = row.to_dict() # Преобразуем в словарь для удобства
 
-            # --- Обновление имен (Разрешение конфликтов) ---
+            # --- ✨ 1. Ищем или создаем студента (УМНЫЙ ПОИСК) ---
+            # Эта функция сама разберется с "7" vs "7A" и ID
+            student, created, updated = _get_or_create_student_smart(row_dict, test_school_class, test_school)
+            
+            if created: created_students += 1
+            if updated: updated_names += 1
+            if not student:
+                 errors.append(f"Строка {row_num}: Не удалось создать/найти студента.")
+                 continue
+
+            # --- 2. Обработка конфликтов имен (если было ручное подтверждение) ---
+            # (Логика из оригинального файла, адаптированная под найденного студента)
             excel_last = normalize_cyrillic(str(row.get('last_name', '')).strip())
             excel_first = normalize_cyrillic(str(row.get('first_name', '')).strip())
-            class_name_raw = str(row.get('class_name', '')).strip()
-
-            if excel_last.lower() == 'nan': excel_last = ''
-            if excel_first.lower() == 'nan': excel_first = ''
-            if class_name_raw.lower() == 'nan': class_name_raw = ''
-
-            if student:
-                # Если пользователь выбрал 'excel' в маппинге конфликтов
-                decision = overrides_map.get(student_id, 'db')
-                if decision == 'excel' and excel_last and excel_first:
+            
+            if excel_last and excel_first:
+                decision = overrides_map.get(student.student_id, 'db')
+                if decision == 'excel':
                     if student.last_name_ru != excel_last or student.first_name_ru != excel_first:
                         student.last_name_ru = excel_last
                         student.first_name_ru = excel_first
                         student.save()
                         updated_names += 1
-            
-            # --- Создание студента "на лету" ---
-            if not student:
-                if not (excel_last and excel_first and class_name_raw):
-                    errors.append(f"Строка {row_num}: Студент {student_id} не найден и нет данных для создания.")
-                    continue 
 
-                # Формирование имени класса (например, "10" + "А" = "10А")
-                parent_class_name = gat_test.school_class.name # Параллель теста (например "10")
-                if class_name_raw.startswith(parent_class_name):
-                     full_class_name = class_name_raw 
-                else:
-                     full_class_name = f"{parent_class_name}{class_name_raw}" 
-                full_class_name = normalize_cyrillic(full_class_name)
-
-                # Ищем или создаем подкласс
-                # ЗДЕСЬ ШКОЛА УЖЕ ИЗВЕСТНА (gat_test.school), поэтому ошибки не будет
-                school_class = SchoolClass.objects.filter(
-                    school=gat_test.school, name=full_class_name, parent=gat_test.school_class
-                ).first()
-
-                if not school_class:
-                    school_class = SchoolClass.objects.create(
-                        school=gat_test.school, name=full_class_name, parent=gat_test.school_class
-                    )
-
-                student = Student.objects.create(
-                    student_id=student_id,
-                    school_class=school_class,
-                    last_name_ru=excel_last,
-                    first_name_ru=excel_first,
-                    status='ACTIVE'
-                )
-                created_students += 1
-
-            if student is None: continue
-
-            # --- Подсчет баллов ---
+            # --- 3. Подсчет баллов ---
             scores_by_subject = {} 
             total_score = 0
             
+            # Временное хранилище ответов для текущего студента
+            # Структура: { subject_id: { q_num: is_correct } }
+            current_student_answers_data = defaultdict(dict)
+
             # Парсим колонки вида "МАТ_1", "ФИЗ_2"
             for col_name in df.columns:
                 if '_' not in col_name: continue
@@ -497,28 +574,64 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
                     is_correct = False
 
                 if is_correct: 
-                    # Пока считаем 1 балл за 1 правильный ответ (упрощение для Excel)
-                    # В будущем можно брать вес вопроса из БД
                     total_score += 1
 
                 if str(subject.id) not in scores_by_subject: scores_by_subject[str(subject.id)] = {}
                 scores_by_subject[str(subject.id)][str(q_num)] = is_correct
+                
+                # Сохраняем данные для создания StudentAnswer
+                current_student_answers_data[subject][q_num] = is_correct
 
-            # --- Сохранение результата ---
-            StudentResult.objects.update_or_create(
+            # --- 4. Сохранение результата (StudentResult) ---
+            student_result, _ = StudentResult.objects.update_or_create(
                 student=student,
                 gat_test=gat_test,
                 defaults={'total_score': total_score, 'scores_by_subject': scores_by_subject}
             )
+            processed_result_ids.append(student_result.id)
 
-            # --- Расчет оценки для статистики (Используем utils.py) ---
+            # --- 5. Подготовка объектов StudentAnswer (для Bulk Create) ---
+            # Нам нужно найти Question объекты для создания связей
+            # Чтобы не делать запрос на каждый вопрос внутри цикла, лучше бы их закешировать,
+            # но здесь сделаем get_or_create для надежности (если вопросы еще не созданы)
+            
+            for subject, answers in current_student_answers_data.items():
+                for q_num, is_correct in answers.items():
+                    # Пытаемся найти вопрос в кеше (можно оптимизировать выносом cache наружу)
+                    # Для надежности ищем в БД:
+                    question = Question.objects.filter(
+                        gat_test=gat_test, subject=subject, question_number=q_num
+                    ).first()
+                    
+                    # Если вопроса нет в БД, создаем его (это редкость, но бывает)
+                    if not question:
+                        question = Question.objects.create(
+                            gat_test=gat_test, subject=subject, question_number=q_num
+                        )
+                    
+                    # Добавляем в список на создание
+                    student_answers_to_create.append(StudentAnswer(
+                        result=student_result,
+                        question=question,
+                        is_correct=is_correct
+                    ))
+
+            # --- Расчет оценки для статистики ---
             if max_test_score > 0:
                 percent = (total_score / max_test_score) * 100
-                # Вызов функции из утилиты
                 grade = calculate_grade_from_percentage(percent)
                 batch_grades.append(grade)
             
             results_processed += 1
+
+    # ✨ ОПТИМИЗАЦИЯ BULK: ФИНАЛЬНЫЙ ЭТАП
+    # 1. Удаляем старые ответы для обработанных результатов (чтобы избежать дублей)
+    if processed_result_ids:
+        StudentAnswer.objects.filter(result_id__in=processed_result_ids).delete()
+    
+    # 2. Массово создаем новые ответы одним запросом
+    if student_answers_to_create:
+        StudentAnswer.objects.bulk_create(student_answers_to_create, batch_size=2000)
 
     # Удаляем временный файл
     if default_storage.exists(excel_file_path):
@@ -533,6 +646,6 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
         'total_unique_students': results_processed,
         'created_students': created_students,
         'updated_names': updated_names,
-        'average_batch_grade': avg_grade_batch, # Возвращаем среднюю оценку
+        'average_batch_grade': avg_grade_batch,
         'errors': errors
     }

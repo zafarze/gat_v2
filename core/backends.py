@@ -18,11 +18,12 @@ class EmailOrUsernameBackend(BaseBackend):
         users = UserModel.objects.filter(Q(username__iexact=username) | Q(email__iexact=username))
 
         # 1. Если найден ровно один пользователь...
-        if users.count() == 1:
-            user = users.first()
-            # ...проверяем его пароль.
-            if user.check_password(password):
-                return user
+        user = users.first()
+        if user and user.check_password(password):
+            if users.count() > 1:
+        # Логгируем странную ситуацию: дубли email в базе!
+                return None 
+            return user
         
         # 2. Если найдено 0 или больше 1 пользователя, мы не можем надежно
         #    определить, кто пытается войти. Возвращаем None, и форма
