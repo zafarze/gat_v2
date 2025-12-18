@@ -1,9 +1,39 @@
-venv/
-*.pyc
+# --- Python & Django ---
 __pycache__/
+*.py[cod]
+*$py.class
+*.log
+*.pot
+
+# Виртуальное окружение (САМОЕ ВАЖНОЕ)
+venv/
+env/
+.venv/
+
+# Базы данных (Не отправляем на сервер)
 db.sqlite3
+db.sqlite3-journal
+
+# Переменные окружения и секреты (САМОЕ ВАЖНОЕ)
 .env
-.DS_Store
+.env.local
+
+# Папки с медиа (пользовательские файлы)
+media/
+
+# Статика (если используется collectstatic, папку назначения исключаем)
+staticfiles/
+
+# --- Frontend (Node.js & Tailwind) ---
+node_modules/
+npm-debug.log*
+
+# --- IDE (настройки редактора) ---
+.idea/
 .vscode/
 
-my_backup.sql
+# --- Временные и мусорные файлы ---
+requirements.txt.bak
+data_dump.json
+Thumbs.db
+Desktop.ini

@@ -7,7 +7,7 @@ import uuid
 from collections import defaultdict
 from datetime import datetime
 
-from django.db import transaction, models
+from django.db import transaction, models, IntegrityError # ✨ Добавлен IntegrityError
 from django.db.models import Q
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
 from django.core.files.storage import default_storage
@@ -142,30 +142,56 @@ def _get_or_create_student_smart(row_data, test_school_class, test_school):
     # Формируем ID, если его нет
     final_id = student_id if student_id else f"TEMP-{uuid.uuid4().hex[:8].upper()}"
     
-    # Определяем класс для создания.
+    # --- ЛОГИКА ОПРЕДЕЛЕНИЯ КЛАССА ---
     target_class = test_school_class
+    
     if excel_class_name:
-        norm_excel_class = normalize_cyrillic(excel_class_name).upper()
+        norm_excel_class = normalize_cyrillic(excel_class_name).upper() # Например "Б" или "6Б"
+        
+        # Вариант А: В Excel написано полное имя (например, "6А")
         found_class = SchoolClass.objects.filter(
             school=test_school, 
             name__iexact=norm_excel_class,
             parent=test_school_class 
         ).first()
         
+        # Вариант Б: В Excel написана только БУКВА (например, "Б"), а тест для параллели "6"
         if not found_class and test_school_class.parent is None:
+            # Пытаемся склеить: "6" + "Б" -> "6Б"
+            combined_name = f"{test_school_class.name}{norm_excel_class}"
+            found_class = SchoolClass.objects.filter(
+                school=test_school,
+                name__iexact=combined_name,
+                parent=test_school_class
+            ).first()
+
+        # Вариант В: Глобальный поиск по школе
+        if not found_class:
              found_class = SchoolClass.objects.filter(school=test_school, name__iexact=norm_excel_class).first()
 
         if found_class:
             target_class = found_class
 
-    new_student = Student.objects.create(
-        student_id=final_id,
-        school_class=target_class,
-        last_name_ru=last_name if last_name else "Unknown",
-        first_name_ru=first_name if first_name else "Unknown",
-        status='ACTIVE'
-    )
-    return new_student, True, False
+    # --- ✨ БЕЗОПАСНОЕ СОЗДАНИЕ (ЗАЩИТА ОТ ДУБЛИКАТОВ) ✨ ---
+    try:
+        new_student = Student.objects.create(
+            student_id=final_id,
+            school_class=target_class,
+            last_name_ru=last_name if last_name else "Unknown",
+            first_name_ru=first_name if first_name else "Unknown",
+            status='ACTIVE'
+        )
+        return new_student, True, False
+    except IntegrityError:
+        # Если база данных ругается, что такой ID уже есть,
+        # значит мы его пропустили при поиске (или это дубль в самом файле).
+        # Просто находим его и возвращаем.
+        try:
+            existing_student = Student.objects.get(student_id=final_id)
+            return existing_student, False, False
+        except Student.DoesNotExist:
+            # Если и так не нашли (что странно при IntegrityError), пробрасываем ошибку
+            raise 
 
 # =============================================================================
 # --- 1. ЗАГРУЗКА СПИСКА УЧЕНИКОВ (Импорт базы) ---
