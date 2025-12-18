@@ -1,0 +1,43 @@
+<form method="POST" action="{% url 'core:student_delete_multiple' %}" id="bulk-delete-form">
+    {% csrf_token %}
+
+    <div class="mb-4 flex justify-between items-center">
+        <button type="submit" 
+                class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700 disabled:opacity-50"
+                onclick="return confirm('Вы уверены, что хотите удалить выбранных учеников? Это действие необратимо.');">
+            Удалить выбранных
+        </button>
+    </div>
+
+    <table>
+        <thead>
+            <tr>
+                <th>
+                    <input type="checkbox" id="select-all" onclick="toggleAll(this)">
+                </th>
+                <th>ФИО</th>
+                <th>Класс</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for student in students %}
+            <tr>
+                <td>
+                    <input type="checkbox" name="student_ids" value="{{ student.id }}" class="student-checkbox">
+                </td>
+                <td>{{ student.full_name_ru }}</td>
+                <td>{{ student.school_class.name }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</form>
+
+<script>
+function toggleAll(source) {
+    checkboxes = document.getElementsByName('student_ids');
+    for(var i=0, n=checkboxes.length;i<n;i++) {
+        checkboxes[i].checked = source.checked;
+    }
+}
+</script>

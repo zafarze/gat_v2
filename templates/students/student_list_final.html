@@ -2,58 +2,71 @@
 {% block title %}{{ title }}{% endblock %}
 
 {% block content %}
-{# --- ГЛАВНЫЙ КОНТЕЙНЕР С ALPINE.JS ДАННЫМИ --- #}
+{# --- ГЛАВНЫЙ КОНТЕЙНЕР С ALPINE.JS --- #}
 <div
     x-data="{
         selectedStudents: [],
         selectAll: false,
         showModal: false,
+        // Получаем все ID студентов на странице
         get allStudentIds() {
-            return Array.from(document.querySelectorAll('.student-checkbox')).map(el => el.value);
+            return Array.from(document.querySelectorAll('.student-checkbox-value')).map(el => el.value);
         },
+        // Логика кнопки 'Выбрать все'
         toggleSelectAll() {
             this.selectAll = !this.selectAll;
-            if (this.selectAll) { this.selectedStudents = this.allStudentIds; }
-            else { this.selectedStudents = []; }
+            if (this.selectAll) { 
+                this.selectedStudents = this.allStudentIds; 
+            } else { 
+                this.selectedStudents = []; 
+            }
         },
+        // Обновляем состояние 'Выбрать все', если кликаем по отдельным чекбоксам
         updateSelectAllState() {
             this.selectAll = this.allStudentIds.length > 0 && this.selectedStudents.length === this.allStudentIds.length;
-        },
-        confirmBulkDelete(event) {
-            if (!confirm(`Вы уверены, что хотите удалить выбранных учеников (${this.selectedStudents.length})?`)) {
-                event.preventDefault();
-            }
         }
     }"
     @keydown.escape.window="showModal = false"
 >
-    {# ✨ Динамическая ссылка "назад" ✨ #}
-    {# ✨ ИСПРАВЛЕНИЕ: Используем parent.id если он есть, иначе id самого класса #}
+    {# Ссылка назад #}
     <a href="{% url 'core:student_class_list' school_class.parent.id|default:school_class.id %}" class="back-link mb-2">&larr; Назад к выбору класса</a>
 
-    {# --- ЗАГОЛОВОК СТРАНИЦЫ И КНОПКИ УПРАВЛЕНИЯ --- #}
+    {# --- ЗАГОЛОВОК И ПАНЕЛЬ УПРАВЛЕНИЯ --- #}
     <div class="flex justify-between items-center mb-6 flex-wrap gap-4">
         <h1 class="text-3xl font-bold text-gray-800">{{ title }}</h1>
 
-        {# ✨ ИЗМЕНЕНИЕ: Показываем кнопки управления Суперпользователю ИЛИ Директору ✨ #}
         {% if user.is_superuser or user.profile.is_director %}
         <div class="flex items-center gap-2">
-            {# Кнопка массового удаления (появляется при выборе) #}
-            <button type="submit" form="bulk-delete-form" class="modern-btn danger" x-show="selectedStudents.length > 0" x-transition style="display: none;" {% if is_combined_view %}disabled title="Массовое удаление доступно только в виде отдельного класса"{% endif %}>
-                Удалить выбранных (<span x-text="selectedStudents.length"></span>)
-            </button>
             
-            {# --- ✨ НОВАЯ КНОПКА EXCEL ✨ --- #}
-            {# Ссылка ведет на функцию экспорта, передавая ID текущего класса #}
+            {# ✨ 1. СУПЕР-НАДЕЖНАЯ ФОРМА УДАЛЕНИЯ ✨ #}
+            {# Она создает скрытые инпуты на основе выбора в Alpine.JS #}
+            <form action="{% url 'core:student_delete_multiple' %}" method="POST" class="inline-block"
+                  onsubmit="return confirm('Вы уверены, что хотите удалить выбранных учеников?');">
+                {% csrf_token %}
+                
+                {# ГЕНЕРАТОР СКРЫТЫХ ПОЛЕЙ #}
+                <template x-for="id in selectedStudents" :key="id">
+                    <input type="hidden" name="student_ids" :value="id">
+                </template>
+                
+                <button type="submit" 
+                        class="modern-btn danger" 
+                        x-show="selectedStudents.length > 0" 
+                        x-transition 
+                        style="display: none;">
+                    Удалить выбранных (<span x-text="selectedStudents.length"></span>)
+                </button>
+            </form>
+            
+            {# КНОПКА EXCEL #}
             <a href="{% url 'core:student_export_excel' school_class.id %}" class="modern-btn green flex items-center gap-2" title="Скачать список в Excel">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                     <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
                 </svg>
                 Excel
             </a>
-            {# --- КОНЕЦ НОВОЙ КНОПКИ --- #}
 
-            {# Форма для экспорта/сброса паролей #}
+            {# ЭКСПОРТ ЛОГИНОВ / СБРОС ПАРОЛЕЙ #}
             {% if is_combined_view %}
                 <form action="{% url 'core:parallel_create_export_accounts' school_class.id %}" method="post" class="flex items-center gap-2">
             {% else %}
@@ -61,12 +74,12 @@
             {% endif %}
                 {% csrf_token %}
                 <button type="submit" name="action" value="export_only" class="modern-btn secondary">Экспорт логинов</button>
-                <button type="submit" name="action" value="reset_and_export" class="modern-btn yellow" onclick="return confirm('ВНИМАНИЕ! Это действие сбросит пароли для ВСЕХ учеников {% if is_combined_view %}этой параллели{% else %}этого класса{% endif %}. Продолжить?');">
-                    Сбросить пароли и экспортировать
+                <button type="submit" name="action" value="reset_and_export" class="modern-btn yellow" onclick="return confirm('ВНИМАНИЕ! Это действие сбросит пароли для ВСЕХ учеников. Продолжить?');">
+                    Сбросить и экспортировать
                 </button>
             </form>
 
-            {# Кнопка добавления ученика (только для вида отдельного класса) #}
+            {# ДОБАВИТЬ УЧЕНИКА #}
             {% if not is_combined_view %}
                 <a href="{% url 'core:student_add' %}?class_id={{ school_class.id }}" class="modern-btn primary">+ Добавить ученика</a>
             {% endif %}
@@ -74,116 +87,123 @@
         {% endif %}
     </div>
 
-    {# --- ОСНОВНАЯ ТАБЛИЦА С УЧЕНИКАМИ --- #}
-    <form id="bulk-delete-form" action="{% url 'core:student_delete_multiple' %}" method="POST" @submit="confirmBulkDelete">
-        {% csrf_token %}
-        {# Передаем ID класса, только если это не сводный вид по параллели #}
-        <input type="hidden" name="class_id" value="{% if not is_combined_view %}{{ school_class.id }}{% endif %}">
-        <div id="students-table-container" class="bg-white shadow-md rounded-lg overflow-x-auto">
-            <table class="min-w-full divide-y divide-gray-200">
-                <thead class="bg-gray-50">
-                    <tr>
-                        {# ✨ ИЗМЕНЕНИЕ: Чекбокс показываем только Админу/Директору #}
-                        {% if user.is_superuser or user.profile.is_director %}
-                        <th class="px-4 py-3"><input type="checkbox" @click="toggleSelectAll()" :checked="selectAll" class="form-checkbox"></th>
-                        {% endif %}
-                        <th class="table-header">№</th>
-                        <th class="table-header">Имя Фамилия (рус)</th>
-                        <th class="table-header">Ном Насаб (точ)</th>
-                        <th class="table-header">Name Surname (eng)</th>
-                        {% if is_combined_view %}
-                            <th class="table-header">Класс</th>
-                        {% endif %}
-                        <th class="table-header">ID</th>
-                        <th class="table-header">Логин</th>
-                        <th class="table-header">Последний вход</th>
-                        <th class="table-header text-center">Действия</th>
-                    </tr>
-                </thead>
-                <tbody class="bg-white divide-y divide-gray-200">
-                    {% for student in students %}
-                    <tr class="hover:bg-gray-50" :class="{'bg-indigo-50': selectedStudents.includes('{{ student.pk }}')}">
-                        {# ✨ ИЗМЕНЕНИЕ: Чекбокс показываем только Админу/Директору #}
-                        {% if user.is_superuser or user.profile.is_director %}
-                        <td class="px-4 py-4"><input type="checkbox" name="student_ids" value="{{ student.pk }}" x-model="selectedStudents" @change="updateSelectAllState()" class="student-checkbox form-checkbox"></td>
-                        {% endif %}
-                        <td class="table-cell">{{ forloop.counter }}</td>
-                        <td class="table-cell font-medium">{{ student.full_name_ru }}</td>
-                        <td class="table-cell">{{ student.full_name_tj|default:"" }}</td>
-                        <td class="table-cell">{{ student.full_name_en|default:"" }}</td>
-                        {% if is_combined_view %}
-                            <td class="table-cell">{{ student.school_class.name }}</td>
-                        {% endif %}
-                        <td class="table-cell">{{ student.student_id }}</td>
-                        <td class="table-cell text-gray-500">{{ student.user_profile.user.username|default:"(нет)" }}</td>
-                        <td class="table-cell text-sm text-gray-500">
-                            {{ student.user_profile.user.last_login|date:"d.m.Y H:i"|default:"(никогда)" }}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="flex items-center justify-center space-x-2">
-                                <a href="{% url 'core:student_progress' student.pk %}" title="Аналитика" class="icon-button blue">
-                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm5 2a1 1 0 00-1 1v10a1 1 0 102 0V6a1 1 0 00-1-1zm5 2a1 1 0 00-1 1v8a1 1 0 102 0V9a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+    {# --- ТАБЛИЦА С УЧЕНИКАМИ --- #}
+    {# Таблица теперь ПОЛНОСТЬЮ отделена от форм. Чекбоксы просто меняют JS-переменную. #}
+    <div id="students-table-container" class="bg-white shadow-md rounded-lg overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    {% if user.is_superuser or user.profile.is_director %}
+                    <th class="px-4 py-3">
+                        <input type="checkbox" @click="toggleSelectAll()" :checked="selectAll" class="form-checkbox cursor-pointer">
+                    </th>
+                    {% endif %}
+                    <th class="table-header">№</th>
+                    <th class="table-header">Имя Фамилия (рус)</th>
+                    <th class="table-header">Ном Насаб (точ)</th>
+                    <th class="table-header">Name Surname (eng)</th>
+                    {% if is_combined_view %}
+                        <th class="table-header">Класс</th>
+                    {% endif %}
+                    <th class="table-header">ID</th>
+                    <th class="table-header">Логин</th>
+                    <th class="table-header">Последний вход</th>
+                    <th class="table-header text-center">Действия</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for student in students %}
+                <tr class="hover:bg-gray-50" :class="{'bg-indigo-50': selectedStudents.includes('{{ student.pk }}')}">
+                    
+                    {% if user.is_superuser or user.profile.is_director %}
+                    <td class="px-4 py-4">
+                        {# ЧЕКБОКС (Только для обновления Alpine) #}
+                        <input type="checkbox" 
+                               value="{{ student.pk }}" 
+                               x-model="selectedStudents" 
+                               @change="updateSelectAllState()" 
+                               class="student-checkbox-value form-checkbox cursor-pointer">
+                    </td>
+                    {% endif %}
+                    
+                    <td class="table-cell">{{ forloop.counter }}</td>
+                    <td class="table-cell font-medium">{{ student.full_name_ru }}</td>
+                    <td class="table-cell">{{ student.full_name_tj|default:"" }}</td>
+                    <td class="table-cell">{{ student.full_name_en|default:"" }}</td>
+                    {% if is_combined_view %}
+                        <td class="table-cell">{{ student.school_class.name }}</td>
+                    {% endif %}
+                    <td class="table-cell">{{ student.student_id }}</td>
+                    <td class="table-cell text-gray-500">{{ student.user_profile.user.username|default:"(нет)" }}</td>
+                    <td class="table-cell text-sm text-gray-500">
+                        {{ student.user_profile.user.last_login|date:"d.m.Y H:i"|default:"(никогда)" }}
+                    </td>
+                    
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="flex items-center justify-center space-x-2">
+                            <a href="{% url 'core:student_progress' student.pk %}" title="Аналитика" class="icon-button blue">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 3a1 1 0 00-1 1v12a1 1 0 102 0V4a1 1 0 00-1-1zm5 2a1 1 0 00-1 1v10a1 1 0 102 0V6a1 1 0 00-1-1zm5 2a1 1 0 00-1 1v8a1 1 0 102 0V9a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                            </a>
+
+                            {% if user.is_superuser or user.profile.is_director %}
+                                <a href="{% url 'core:student_edit' student.pk %}" title="Редактировать" class="icon-button indigo">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
                                 </a>
-                                {# ✨ ИЗМЕНЕНИЕ: Показываем кнопки управления Админу ИЛИ Директору ✨ #}
-                                {% if user.is_superuser or user.profile.is_director %}
-                                    {# Кнопка редактирования ученика #}
-                                    <a href="{% url 'core:student_edit' student.pk %}" title="Редактировать" class="icon-button indigo">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" /><path fill-rule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clip-rule="evenodd" /></svg>
-                                    </a>
-                                    {# Блок управления аккаунтом ученика #}
-                                    {% if student.user_profile.user %}
-                                        {# Сбросить пароль #}
-                                        <button type="button"
-                                                hx-post="{% url 'core:student_reset_password' student.user_profile.user.pk %}"
-                                                hx-target="#modal-content"
-                                                hx-swap="innerHTML"
-                                                hx-confirm="Вы уверены, что хотите сбросить пароль для ученика {{ student.full_name_ru }}?"
-                                                @click="showModal = true"
-                                                title="Сбросить пароль" class="icon-button yellow">
-                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd" /></svg>
-                                        </button>
-                                        {# Удалить аккаунт #}
-                                        <form action="{% url 'core:student_delete_account' student.user_profile.user.pk %}" method="post" onsubmit="return confirm('Удалить аккаунт ученика? Его результаты тестов останутся.');" class="inline-block">
-                                            {% csrf_token %}
-                                            <button type="submit" title="Удалить аккаунт" class="icon-button red">
-                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
-                                            </button>
-                                        </form>
-                                    {% else %}
-                                        {# Создать аккаунт #}
-                                        <form action="{% url 'core:student_create_account' student.pk %}" method="post" onsubmit="return confirm('Создать аккаунт для этого ученика?');" class="inline-block">
-                                            {% csrf_token %}
-                                            <button type="submit" title="Создать аккаунт" class="icon-button green">
-                                                 <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" /></svg>
-                                            </button>
-                                        </form>
-                                    {% endif %}
-                                    {# Кнопка удаления ученика #}
+
+                                {# Сброс пароля (HTMX) #}
+                                {% if student.user_profile.user %}
                                     <button type="button"
-                                            hx-get="{% url 'core:student_delete' student.pk %}"
+                                            hx-post="{% url 'core:student_reset_password' student.user_profile.user.pk %}"
                                             hx-target="#modal-content"
                                             hx-swap="innerHTML"
+                                            hx-confirm="Сбросить пароль для {{ student.full_name_ru }}?"
                                             @click="showModal = true"
-                                            title="Удалить ученика" class="icon-button red">
-                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                                            title="Сбросить пароль" class="icon-button yellow">
+                                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 8a6 6 0 01-7.743 5.743L10 14l-1 1-1 1H6v2H2v-4l4.257-4.257A6 6 0 1118 8zm-6-4a1 1 0 100 2 1 1 0 000-2z" clip-rule="evenodd" /></svg>
                                     </button>
+                                    
+                                    {# Удалить аккаунт #}
+                                    <form action="{% url 'core:student_delete_account' student.user_profile.user.pk %}" method="post" onsubmit="return confirm('Удалить аккаунт?');" class="inline-block">
+                                        {% csrf_token %}
+                                        <button type="submit" title="Удалить аккаунт" class="icon-button red">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                                        </button>
+                                    </form>
+                                {% else %}
+                                    {# Создать аккаунт #}
+                                    <form action="{% url 'core:student_create_account' student.pk %}" method="post" onsubmit="return confirm('Создать аккаунт?');" class="inline-block">
+                                        {% csrf_token %}
+                                        <button type="submit" title="Создать аккаунт" class="icon-button green">
+                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M8 9a3 3 0 100-6 3 3 0 000 6zM8 11a6 6 0 016 6H2a6 6 0 016-6zM16 11a1 1 0 10-2 0v1h-1a1 1 0 100 2h1v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-1z" /></svg>
+                                        </button>
+                                    </form>
                                 {% endif %}
-                            </div>
+                                
+                                {# Удалить ученика (HTMX) #}
+                                <button type="button"
+                                        hx-get="{% url 'core:student_delete' student.pk %}"
+                                        hx-target="#modal-content"
+                                        hx-swap="innerHTML"
+                                        @click="showModal = true"
+                                        title="Удалить ученика" class="icon-button red">
+                                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                                </button>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="{% if user.is_superuser or user.profile.is_director %}{% if is_combined_view %}10{% else %}9{% endif %}{% else %}{% if is_combined_view %}9{% else %}8{% endif %}{% endif %}" class="text-center py-10 text-gray-500">
+                            В этом классе/параллели нет учеников.
                         </td>
                     </tr>
-                    {% empty %}
-                        {# Устанавливаем правильное количество колонок #}
-                        {# ✨ ИЗМЕНЕНИЕ: Динамический colspan #}
-                        <tr><td colspan="{% if user.is_superuser or user.profile.is_director %}{% if is_combined_view %}10{% else %}9{% endif %}{% else %}{% if is_combined_view %}9{% else %}8{% endif %}{% endif %}" class="text-center py-10 text-gray-500">
-                            В этом классе/параллели нет учеников.
-                        </td></tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    </form>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
-    {# --- СТРУКТУРА МОДАЛЬНОГО ОКНА (изначально скрыто) --- #}
+    {# --- МОДАЛЬНОЕ ОКНО (для HTMX) --- #}
     <div x-show="showModal" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200"
          x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
@@ -195,7 +215,6 @@
              x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 scale-100"
              x-transition:leave-end="opacity-0 scale-95"
              class="bg-white rounded-lg shadow-xl w-full max-w-md mx-auto" id="modal-content">
-            {# Содержимое загрузится через HTMX #}
             <div class="p-6 text-center"> <p>Загрузка...</p> </div>
         </div>
     </div>

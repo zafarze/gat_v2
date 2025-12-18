@@ -1,4 +1,4 @@
-# D:\New_GAT\core\urls.py (Полная финальная версия после рефакторинга)
+# D:\New_GAT\core\urls.py (ФИНАЛЬНАЯ ВЕРСИЯ)
 
 from django.urls import path
 from .views import reports
@@ -32,7 +32,6 @@ from core.views.crud import (
     management_dashboard_view,
     QuestionCountListView, QuestionCountCreateView, QuestionCountUpdateView, QuestionCountDeleteView,
     QuestionCountBulkCreateView
-    # Функции load_class_and_subjects_for_gat и load_fields_for_qc теперь в api.py
 )
 
 app_name = 'core'
@@ -120,7 +119,8 @@ urlpatterns = [
     path('dashboard/students/class/<int:class_id>/', students.student_list_view, name='student_list'),
     path('dashboard/students/add/', students.StudentCreateView.as_view(), name='student_add'),
     path('dashboard/students/<int:pk>/edit/', students.StudentUpdateView.as_view(), name='student_edit'),
-    path('dashboard/students/delete-multiple/', students.student_delete_multiple_view, name='student_delete_multiple'),
+    # Дублирующийся путь для совместимости (старый вариант)
+    path('dashboard/students/delete-multiple/', students.student_delete_multiple_view, name='student_delete_multiple_legacy'),
     path('dashboard/students/<int:pk>/delete/', students.StudentDeleteView.as_view(), name='student_delete'),
     path('dashboard/students/upload/', students.student_upload_view, name='student_upload'),
     path('dashboard/students/<int:student_id>/progress/', students.student_progress_view, name='student_progress'),
@@ -134,6 +134,8 @@ urlpatterns = [
     path('dashboard/students/parallel/<int:parent_id>/classes/', students.student_class_list_view, name='student_class_list'),
     path('dashboard/students/parallel/<int:parallel_id>/all/', students.student_list_combined_view, name='student_list_combined'),
     path('dashboard/students/parallel/<int:parallel_id>/create-and-export-accounts/', students.parallel_create_export_accounts, name='parallel_create_export_accounts'),
+    # Основной рабочий путь для массового удаления
+    path('students/delete-multiple/', students.student_delete_multiple_view, name='student_delete_multiple'),
 
     # =============================================================================
     # --- ОТЧЕТЫ, АНАЛИТИКА И ЭКСПОРТ ---
@@ -144,7 +146,7 @@ urlpatterns = [
     path('dashboard/results/<int:pk>/delete/', reports.student_result_delete_view, name='student_result_delete'),
     path('dashboard/monitoring/', monitoring.monitoring_view, name='monitoring'),
     path('dashboard/grading/', grading.grading_view, name='grading'),
-    path('dashboard/statistics/', statistics.statistics_view, name='statistics'), # Указывает на statistics.py
+    path('dashboard/statistics/', statistics.statistics_view, name='statistics'),
     path('dashboard/analysis/', reports.analysis_view, name='analysis'),
     path('dashboard/deep-analysis/', deep_analysis.deep_analysis_view, name='deep_analysis'),
     path('dashboard/results/archive/', reports.archive_years_view, name='results_archive'),
@@ -169,18 +171,16 @@ urlpatterns = [
     path('api/load-quarters/', api.load_quarters, name='api_load_quarters'),
     path('api/load-schools/', api.api_load_schools, name='api_load_schools'),
     path('api/load-classes/', api.load_classes, name='api_load_classes'),
-    path('api/load-classes/', api.load_classes, name='api_load_classes'),
     path('api/load-subjects/', api.load_subjects, name='api_load_subjects'),
     path('api/load-classes-as-chips/', api.api_load_classes_as_chips, name='api_load_classes_as_chips'),
-    path('api/load-subjects-for-filters/', api.load_subjects_for_filters, name='api_load_subjects_for_filters'), # Указывает на api.py
+    path('api/load-subjects-for-filters/', api.load_subjects_for_filters, name='api_load_subjects_for_filters'),
     path('api/notifications/', api.get_notifications_api, name='api_get_notifications'),
     path('api/notifications/mark-as-read/', api.mark_notifications_as_read, name='api_mark_notifications_as_read'),
-    path('api/permissions/toggle-school/', api.toggle_school_access_api, name='api_toggle_school_access'), # Указывает на api.py
-    path('api/permissions/toggle-subject/', api.toggle_subject_access_api, name='api_toggle_subject_access'), # Указывает на api.py
-    path('htmx/load-class-and-subjects/', api.load_class_and_subjects_for_gat, name='load_class_and_subjects_for_gat'), # Указывает на api.py
-    path('htmx/load-fields-for-qc/', api.load_fields_for_qc, name='load_fields_for_qc'), # Указывает на api.py
+    path('api/permissions/toggle-school/', api.toggle_school_access_api, name='api_toggle_school_access'),
+    path('api/permissions/toggle-subject/', api.toggle_subject_access_api, name='api_toggle_subject_access'),
+    path('htmx/load-class-and-subjects/', api.load_class_and_subjects_for_gat, name='load_class_and_subjects_for_gat'),
+    path('htmx/load-fields-for-qc/', api.load_fields_for_qc, name='load_fields_for_qc'),
     path('htmx/load-subjects-for-user-form/', api.api_load_subjects_for_user_form, name='api_load_subjects_for_user_form'),
-    
 
     # =============================================================================
     # --- КАБИНЕТ УЧЕНИКА ---
@@ -188,5 +188,4 @@ urlpatterns = [
     path('student/dashboard/', student_dashboard.student_dashboard_view, name='student_dashboard'),
     path('student/exams/', student_exams.exam_list_view, name='exam_list'),
     path('student/exams/<int:result_id>/review/', student_exams.exam_review_view, name='exam_review'),
-
 ]

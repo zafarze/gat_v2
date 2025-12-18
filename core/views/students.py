@@ -8,6 +8,7 @@ from django.db.models import Q
 import pandas as pd
 import urllib.parse
 from django.db.models import Count, Q
+from django.views.decorators.http import require_POST
 
 # Сторонние библиотеки (Django)
 from django.contrib import messages
@@ -315,47 +316,42 @@ class StudentDeleteView(LoginRequiredMixin, StudentAccessMixin, DeleteView):
         return context
 
 @login_required
+@require_POST # Важно! Разрешаем только безопасный метод POST
 def student_delete_multiple_view(request):
-    """Массовое удаление выбранных учеников."""
-    user = request.user
+    """
+    Массовое удаление.
+    Работает везде: в классе, в параллели, в поиске.
+    Не зависит от hidden input 'class_id'.
+    """
+    # 1. Получаем ID выбранных студентов
+    student_ids = request.POST.getlist('student_ids')
 
-    if request.method == 'POST':
-        student_ids_to_delete = request.POST.getlist('student_ids')
-        class_id = request.POST.get('class_id')
+    # Если ничего не выбрали - ругаемся и возвращаем назад
+    if not student_ids:
+        messages.warning(request, "Вы не выбрали ни одного ученика для удаления.")
+        return redirect(request.META.get('HTTP_REFERER', 'core:dashboard'))
 
-        # Проверка прав
-        target_school = None
-        if class_id:
-            try:
-                target_class = SchoolClass.objects.select_related('school').get(pk=class_id)
-                target_school = target_class.school
-            except SchoolClass.DoesNotExist:
-                messages.error(request, "Указанный класс не найден.")
-                return redirect('core:student_school_list')
+    # 2. Получаем список школ, куда у пользователя есть доступ (Директор/Завуч)
+    # Используем твою готовую функцию из permissions.py
+    accessible_schools = get_accessible_schools(request.user)
 
-        is_allowed = False
-        if user.is_superuser:
-            is_allowed = True
-        elif target_school and hasattr(user, 'profile') and user.profile.role == UserProfile.Role.DIRECTOR:
-            if target_school in get_accessible_schools(user):
-                is_allowed = True
+    # 3. Удаляем только тех, кто:
+    #    а) Есть в списке ID
+    #    б) Учится в школе, к которой у нас есть доступ!
+    deleted_count, _ = Student.objects.filter(
+        id__in=student_ids,
+        school_class__school__in=accessible_schools  # <--- ВОТ ГЛАВНАЯ ЗАЩИТА
+    ).delete()
 
-        if not is_allowed:
-            messages.error(request, "У вас нет прав для удаления учеников из этого класса.")
-            return redirect('core:student_school_list')
+    # 4. Сообщаем результат
+    if deleted_count > 0:
+        messages.success(request, f"Успешно удалено учеников: {deleted_count}")
+    else:
+        # Если ID были, но ничего не удалилось - значит, пытались удалить чужих
+        messages.error(request, "Не удалось удалить. Возможно, у вас нет прав на этих учеников.")
 
-        if not student_ids_to_delete:
-            messages.warning(request, "Вы не выбрали ни одного ученика для удаления.")
-        else:
-            students_query = Student.objects.filter(pk__in=student_ids_to_delete, school_class__school=target_school)
-            deleted_count, _ = students_query.delete()
-            messages.success(request, f"Успешно удалено учеников: {deleted_count}.")
-
-        if class_id:
-            return redirect('core:student_list', class_id=class_id)
-
-    return redirect('core:student_school_list')
-
+    # 5. Возвращаемся туда, откуда пришли (Parallel view, Class view или Search)
+    return redirect(request.META.get('HTTP_REFERER', 'core:dashboard'))
 # =============================================================================
 # --- МАССОВЫЕ ОПЕРАЦИИ: ЗАГРУЗКА И АККАУНТЫ ---
 # =============================================================================
