@@ -76,10 +76,13 @@ def extract_test_date_from_excel(uploaded_file):
                 continue
     return None
 
-def _get_or_create_student_smart(row_data, test_school_class, test_school):
+def _get_or_create_student_smart(row_data, test_school_class, test_school, update_names=True):
     """
     Ищет студента. Если в Excel указана ПАРАЛЛЕЛЬ (например, 7),
     а ученик числится в ПОДКЛАССЕ (например, 7А), этот код его НАЙДЕТ.
+    
+    update_names=True: (По умолчанию) Обновляет ФИО в базе, если они отличаются в Excel.
+    update_names=False: Игнорирует отличия в ФИО, оставляя старые данные из базы.
     """
     # Извлекаем данные из строки
     raw_id = row_data.get('student_id')
@@ -99,17 +102,21 @@ def _get_or_create_student_smart(row_data, test_school_class, test_school):
     if student_id:
         student = Student.objects.filter(student_id=student_id).first()
         if student:
-            # Если нашли по ID, обновляем данные, если они изменились
+            # Если нашли по ID, проверяем, нужно ли обновлять данные
             updated = False
-            if last_name and (student.last_name_ru != last_name):
-                student.last_name_ru = last_name
-                updated = True
-            if first_name and (student.first_name_ru != first_name):
-                student.first_name_ru = first_name
-                updated = True
             
-            if updated:
-                student.save()
+            # --- ✨ ВАЖНОЕ ИЗМЕНЕНИЕ: Обновляем только если разрешено ---
+            if update_names:
+                if last_name and (student.last_name_ru != last_name):
+                    student.last_name_ru = last_name
+                    updated = True
+                if first_name and (student.first_name_ru != first_name):
+                    student.first_name_ru = first_name
+                    updated = True
+                
+                if updated:
+                    student.save()
+            
             return student, False, updated
 
     # 2. Если ID нет или не нашли — ищем по ФИО и Классу (Умный поиск)
@@ -191,7 +198,7 @@ def _get_or_create_student_smart(row_data, test_school_class, test_school):
             return existing_student, False, False
         except Student.DoesNotExist:
             # Если и так не нашли (что странно при IntegrityError), пробрасываем ошибку
-            raise 
+            raise
 
 # =============================================================================
 # --- 1. ЗАГРУЗКА СПИСКА УЧЕНИКОВ (Импорт базы) ---
@@ -402,7 +409,7 @@ def process_student_upload(excel_file, school=None):
 def analyze_student_results(excel_file):
     """
     Читает файл, сохраняет его временно и ищет конфликты в ФИО.
-    Возвращает список конфликтов, статистику и путь к временному файлу.
+    Использует ту же логику нормализации (Cyrillic + Title Case), что и сохранение.
     """
     # 1. Сохраняем файл временно
     timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
@@ -426,6 +433,9 @@ def analyze_student_results(excel_file):
         'lastname': 'last_name', 'surname_en': 'last_name',
         'name': 'first_name', 'имя': 'first_name', 'ном': 'first_name', 
         'firstname': 'first_name', 'name_en': 'first_name',
+        # Можно добавить mapping для класса, если нужно выводить его в отчете
+        'section': 'class_name', 'class': 'class_name', 'класс': 'class_name', 
+        'синф': 'class_name', 'grade': 'class_name'
     }
     df.rename(columns=column_mapping, inplace=True)
 
@@ -434,26 +444,40 @@ def analyze_student_results(excel_file):
 
     for index, row in df.iterrows():
         raw_id = row.get('student_id')
-        if pd.isna(raw_id): continue
+        
+        # Надежная проверка на пустоту
+        if pd.isna(raw_id) or str(raw_id).strip().lower() in ['nan', 'none', '', '0']: 
+            continue
+            
         student_id = str(raw_id).strip()
         if student_id.endswith('.0'): student_id = student_id[:-2]
         if student_id.isdigit() and not student_id.startswith('0') and len(student_id) < 6:
             student_id = student_id.zfill(6)
-        if not student_id: continue
-
+        
+        # Ищем студента строго по ID для анализа конфликтов
         student = Student.objects.filter(student_id=student_id).first()
 
-        excel_last = normalize_cyrillic(str(row.get('last_name', '')).strip())
-        excel_first = normalize_cyrillic(str(row.get('first_name', '')).strip())
+        # ✨ ВАЖНО: Применяем .title(), как и в функции сохранения!
+        excel_last = normalize_cyrillic(str(row.get('last_name', '')).strip()).title()
+        excel_first = normalize_cyrillic(str(row.get('first_name', '')).strip()).title()
+        
+        # Очистка от строковых 'nan'
         if excel_last.lower() == 'nan': excel_last = ''
         if excel_first.lower() == 'nan': excel_first = ''
         
         if not student:
             new_students_count += 1
         else:
+            # Сравниваем только если в Excel есть данные
             if excel_last and excel_first:
-                db_last = normalize_cyrillic(student.last_name_ru)
-                db_first = normalize_cyrillic(student.first_name_ru)
+                # Берем данные из БД "как есть"
+                db_last = student.last_name_ru
+                db_first = student.first_name_ru
+                
+                # Сравниваем. Так как excel_last мы уже прогнали через .title(),
+                # то сравнение будет корректным.
+                # Если в БД "Иванов", а в Excel "иванов" -> excel_last станет "Иванов" -> конфликта НЕТ (и это хорошо).
+                # Если в БД "Иванов", а в Excel "Петров" -> конфликт ЕСТЬ.
                 
                 diff_last = db_last != excel_last
                 diff_first = db_first != excel_first
@@ -461,8 +485,8 @@ def analyze_student_results(excel_file):
                 if diff_last or diff_first:
                     conflicts.append({
                         'student_id': student_id,
-                        'current_last': student.last_name_ru,
-                        'current_first': student.first_name_ru,
+                        'current_last': db_last,
+                        'current_first': db_first,
                         'new_last': excel_last,
                         'new_first': excel_first,
                         'class_name': student.school_class.name
@@ -534,7 +558,12 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
             row_dict = row.to_dict()
 
             # --- ✨ 1. Ищем или создаем студента (УМНЫЙ ПОИСК) ---
-            student, created, updated = _get_or_create_student_smart(row_dict, test_school_class, test_school)
+            student, created, updated = _get_or_create_student_smart(
+                row_dict, 
+                test_school_class, 
+                test_school, 
+                update_names=False
+            )
             
             if created: created_students += 1
             if updated: updated_names += 1
