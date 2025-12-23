@@ -1,0 +1,66 @@
+{# templates/gat_tests/duplicate_school_modal.html #}
+<div id="modal-form-content" class="h-full">
+    <form hx-post="{% url 'core:gat_test_duplicate_school' school.pk %}" 
+          hx-target="#test-list-container" 
+          method="post"
+          class="flex flex-col h-full bg-white rounded-xl shadow-2xl max-w-md mx-auto mt-20">
+
+        {% csrf_token %}
+
+        <div class="p-6 border-b flex justify-between items-center">
+            <h2 class="text-xl font-bold text-gray-800">Клонировать тесты школы</h2>
+            <button type="button" @click="showModal = false" class="text-gray-400 hover:text-gray-600">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+            </button>
+        </div>
+
+        <div class="p-6 space-y-4">
+            <p class="text-sm text-gray-600">
+                Вы собираетесь скопировать все тесты школы <strong>{{ school.name }}</strong>.
+            </p>
+
+            {# 1. ОТКУДА КОПИРОВАТЬ #}
+            <div>
+                <label class="modern-label">Из какой четверти брать тесты?</label>
+                <select name="source_quarter" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    {% for q in quarters %}
+                        <option value="{{ q.id }}" {% if q.id|stringformat:"s" == current_quarter_id|stringformat:"s" %}selected{% endif %}>
+                            {{ q.name }} ({{ q.year.name }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {# 2. КУДА КОПИРОВАТЬ #}
+            <div>
+                <label class="modern-label">В какую четверть копировать?</label>
+                <select name="target_quarter" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    {% for q in quarters %}
+                        <option value="{{ q.id }}" {% if forloop.counter == 2 %}selected{% endif %}>
+                            {{ q.name }} ({{ q.year.name }})
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            {# 3. НОВАЯ ДАТА #}
+            <div>
+                <label class="modern-label">Дата проведения новых тестов</label>
+                <input type="date" name="new_date" required value="{% now 'Y-m-d' %}"
+                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+            </div>
+            
+            <div class="bg-yellow-50 p-3 rounded-md text-sm text-yellow-800 border border-yellow-200">
+                <span class="font-bold">Внимание:</span> Будут созданы копии тестов с номером, увеличенным на 1 (например, GAT-1 -> GAT-2).
+            </div>
+        </div>
+
+        <div class="p-6 bg-gray-50 border-t flex justify-end gap-3 rounded-b-xl">
+            <button type="button" @click="showModal = false" class="modern-btn secondary">Отмена</button>
+            <button type="submit" class="modern-btn primary flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M7 9a2 2 0 012-2h6a2 2 0 012 2v6a2 2 0 01-2 2H9a2 2 0 01-2-2V9z" /><path d="M5 3a2 2 0 00-2 2v6a2 2 0 002 2V5h8a2 2 0 00-2-2H5z" /></svg>
+                Клонировать
+            </button>
+        </div>
+    </form>
+</div>

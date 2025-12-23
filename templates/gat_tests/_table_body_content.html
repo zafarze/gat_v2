@@ -1,30 +1,105 @@
+{# D:\New_GAT\templates\gat_tests\_table_body_content.html #}
+{% load custom_filters %} 
+
 {% for test in tests %}
-<tr class="hover:bg-gray-50 transition-colors">
-    <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900 border-r border-gray-200">{{ test.name }}</td>
-    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">{{ test.quarter.name }}</td>
-    <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-500 border-r border-gray-200">{{ test.test_date|date:"d.m.Y" }}</td>
+<tr class="hover:bg-gray-50 transition-colors group">
+    
+    {# 1. НАЗВАНИЕ И КЛАСС #}
+    <td class="px-4 py-4 whitespace-nowrap border-b border-gray-100">
+        <div class="flex items-center">
+            <div class="flex-shrink-0 h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-xs">
+                {{ test.test_number }}
+            </div>
+            <div class="ml-3">
+                <div class="text-sm font-bold text-gray-900">{{ test.name }}</div>
+                <div class="text-xs text-gray-500">{{ test.school_class.name }} • {{ test.quarter.name }}</div>
+            </div>
+        </div>
+    </td>
+
+    {# 2. ДАТА И СТАТУС (Бейджи) #}
+    <td class="px-4 py-4 whitespace-nowrap border-b border-gray-100">
+        <div class="flex flex-col items-start gap-1">
+            <span class="text-sm text-gray-900 font-medium">{{ test.test_date|date:"d.m.Y" }}</span>
+            
+            {# Логика статуса #}
+            {% now "Y-m-d" as today_str %}
+            {% if test.result_count > 0 %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">
+                    <svg class="mr-1 h-3 w-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    Сдан
+                </span>
+            {% elif test.test_date|date:"Y-m-d" < today_str %}
+                 <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                    Просрочен
+                </span>
+            {% elif test.test_date|date:"Y-m-d" == today_str %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 animate-pulse">
+                    Сегодня
+                </span>
+            {% else %}
+                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">
+                    Ожидается
+                </span>
+            {% endif %}
+        </div>
+    </td>
+
+    {# 3. СТАТИСТИКА (Сколько работ загружено) #}
+    <td class="px-4 py-4 whitespace-nowrap border-b border-gray-100">
+        {% if test.result_count > 0 %}
+            <div class="flex items-center text-sm text-gray-600" title="Количество загруженных работ">
+                <svg class="flex-shrink-0 mr-1.5 h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                </svg>
+                <span class="font-semibold">{{ test.result_count }}</span>
+                <span class="ml-1 text-xs text-gray-400">работ</span>
+            </div>
+        {% else %}
+            <span class="text-xs text-gray-400 italic">Нет результатов</span>
+        {% endif %}
+    </td>
+
+    {# 4. ДЕЙСТВИЯ (Кнопки) #}
     {% if user.is_superuser %}
-    <td class="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
-        <button @click="showModal = true"
-                hx-get="{% url 'core:gat_test_edit' test.pk %}"
-                hx-target="#modal-content"
-                class="modern-btn secondary small">
-            Редактировать
-        </button>
-        <button @click="showDeleteModal = true;
-                        deleteUrl = '{% url 'core:gat_test_delete' test.pk %}';
-                        deleteItemName = '{{ test.name|escapejs }}';
-                        deleteSchoolId = {{ school.id }};"
-                class="modern-btn danger small ml-2">
-            Удалить тест
-        </button>
+    <td class="px-4 py-4 whitespace-nowrap text-right text-sm font-medium border-b border-gray-100">
+        <div class="flex justify-end items-center space-x-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity duration-200">
+            
+            {# Кнопка КЛОН (Иконка) #}
+            <a href="{% url 'core:gat_test_duplicate' test.pk %}"
+               class="p-1.5 text-indigo-600 hover:text-indigo-900 hover:bg-indigo-50 rounded-md transition-colors"
+               title="Дублировать тест">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                </svg>
+            </a>
+
+            {# Кнопка РЕДАКТИРОВАТЬ #}
+            <button @click="showModal = true"
+                    hx-get="{% url 'core:gat_test_edit' test.pk %}"
+                    hx-target="#modal-content"
+                    class="p-1.5 text-blue-600 hover:text-blue-900 hover:bg-blue-50 rounded-md transition-colors"
+                    title="Редактировать">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+            </button>
+
+            {# Кнопка УДАЛИТЬ #}
+            <button @click="showDeleteModal = true;
+                            deleteUrl = '{% url 'core:gat_test_delete' test.pk %}';
+                            deleteItemName = '{{ test.name|escapejs }}';
+                            deleteSchoolId = {{ school.id }};"
+                    class="p-1.5 text-red-600 hover:text-red-900 hover:bg-red-50 rounded-md transition-colors"
+                    title="Удалить">
+                <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+            </button>
+        </div>
     </td>
     {% endif %}
 </tr>
 {% empty %}
-<tr>
-    <td colspan="{% if user.is_superuser %}4{% else %}3{% endif %}" class="px-4 py-6 text-center text-sm text-gray-500">
-        Для этой школы нет назначенных тестов.
-    </td>
-</tr>
+    {# Пустая строка, если ничего не найдено #}
 {% endfor %}

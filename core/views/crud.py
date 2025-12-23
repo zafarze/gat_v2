@@ -3,6 +3,7 @@
 import json
 from collections import defaultdict
 from django.http import HttpResponse
+from django.db.models import Count
 from django.shortcuts import render, redirect, get_object_or_404
 from django.utils import timezone
 from django.views.generic import FormView, ListView, CreateView, UpdateView, DeleteView
@@ -10,7 +11,7 @@ from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Prefetch
-from django.urls import reverse_lazy
+from django.urls import reverse_lazy, reverse
 from django.template.loader import render_to_string
 from core.forms import GatTestForm
 from core.models import School, SchoolClass, Subject
@@ -667,24 +668,53 @@ class SubjectDeleteView(HtmxDeleteView):
 # =============================================================================
 # --- GAT ТЕСТЫ (GAT TEST) ---
 # =============================================================================
-# (Весь остальной код из твоего файла crud.py остается без изменений)
-# ... (вставь сюда остальную часть твоего файла crud.py,
-#      начиная с `def gat_test_list_view(request):`
-#      и до самого конца)
-# =============================================================================
+
 def gat_test_list_view(request):
-    base_qs = GatTest.objects.select_related('school', 'school_class', 'quarter').order_by('-test_date', 'name')
+    # 1. Базовый запрос с оптимизацией и подсчетом результатов (для бейджей)
+    base_qs = GatTest.objects.select_related('school', 'school_class', 'quarter') \
+                             .annotate(result_count=Count('results')) \
+                             .order_by('-test_date', 'name')
+    
+    # 2. Фильтр по правам доступа (безопасность)
     if not request.user.is_superuser:
         accessible_schools = get_accessible_schools(request.user)
         base_qs = base_qs.filter(school__in=accessible_schools)
     
+    # 3. Фильтрация по Четверти (Табы)
+    selected_quarter_id = request.GET.get('quarter')
+    if selected_quarter_id and selected_quarter_id != 'all':
+        base_qs = base_qs.filter(quarter_id=selected_quarter_id)
+
+    # 4. Фильтрация по Поиску (Живой поиск)
+    search_query = request.GET.get('search', '')
+    if search_query:
+        base_qs = base_qs.filter(school__name__icontains=search_query)
+
+    # 5. Получаем список четвертей для табов (текущий год)
+    current_year = AcademicYear.objects.order_by('-start_date').first()
+    quarters = Quarter.objects.filter(year=current_year).order_by('start_date') if current_year else []
+
+    # 6. Группировка по школам
     grouped_tests = defaultdict(list)
     for test in base_qs:
         if test.school: 
             grouped_tests[test.school].append(test)
     
+    # Сортируем группы по названию школы
     sorted_grouped_tests = dict(sorted(grouped_tests.items(), key=lambda item: item[0].name))
-    context = {'grouped_tests': sorted_grouped_tests, 'title': 'GAT Тесты'}
+    
+    context = {
+        'grouped_tests': sorted_grouped_tests, 
+        'title': 'GAT Тесты',
+        'quarters': quarters,
+        'selected_quarter_id': selected_quarter_id,
+        'search_query': search_query, # Возвращаем строку поиска, чтобы она не исчезала из поля
+    }
+
+    # 7. Поддержка HTMX (возвращаем только часть таблицы при фильтрации)
+    if request.htmx:
+        return render(request, 'gat_tests/partials/_test_list_content.html', context)
+
     return render(request, 'gat_tests/list.html', context)
 
 def get_form_kwargs_for_gat(request, instance=None):
@@ -1109,3 +1139,135 @@ class QuestionCountBulkCreateView(HtmxFormView):
             return HttpResponse(status=204, headers=headers)
 
         return redirect(reverse_lazy(self.list_url_name))
+
+@login_required
+def gat_test_duplicate_view(request, pk):
+    """
+    Создает копию GAT-теста.
+    Копирует школу, класс, предметы, но сбрасывает дату и номер теста.
+    """
+    if not request.user.is_superuser:
+        messages.error(request, "У вас нет прав для дублирования тестов.")
+        return redirect('core:gat_test_list')
+        
+    original_test = get_object_or_404(GatTest, pk=pk)
+    
+    # 1. Создаем копию объекта в памяти (pk=None создает новый объект при сохранении)
+    original_subjects = list(original_test.subjects.all()) # Сохраняем предметы
+    
+    # Копируем объект
+    original_test.pk = None
+    original_test.id = None
+    original_test._state.adding = True
+    
+    # Меняем данные для нового теста
+    # Логика авто-инкремента: если был GAT-1, станет GAT-2 (примерно)
+    next_num = original_test.test_number + 1 if original_test.test_number < 4 else 4
+    original_test.test_number = next_num
+    original_test.name = f"{original_test.name} (Копия)" # Можно заменить логикой замены "GAT-1" на "GAT-2"
+    original_test.test_date = timezone.now().date() # Сбрасываем дату на сегодня
+    
+    # Сохраняем основной объект
+    original_test.save()
+    
+    # Восстанавливаем связи ManyToMany (предметы)
+    original_test.subjects.set(original_subjects)
+    
+    messages.success(request, f"Тест успешно скопирован! Теперь это '{original_test.name}'. Отредактируйте дату и детали.")
+    
+    # Если запрос пришел из модального окна или HTMX - можно вернуть сигнал на обновление
+    # Но проще перенаправить на список, так как список должен обновиться
+    return redirect('core:gat_test_list')
+
+@login_required
+def gat_test_duplicate_school_view(request, school_pk):
+    """
+    Массовое дублирование тестов для всей школы.
+    """
+    if not request.user.is_superuser:
+        messages.error(request, "Нет прав.")
+        return HttpResponse(status=403)
+
+    school = get_object_or_404(School, pk=school_pk)
+
+    # 1. GET запрос - показываем форму
+    if request.method == 'GET':
+        # Загружаем четверти для выпадающего списка
+        current_year = AcademicYear.objects.order_by('-start_date').first()
+        quarters = Quarter.objects.filter(year=current_year).order_by('start_date')
+        
+        # Пытаемся угадать текущую выбранную четверть из URL или берем первую
+        current_quarter_id = request.GET.get('current_quarter')
+        
+        context = {
+            'school': school,
+            'quarters': quarters,
+            'current_quarter_id': current_quarter_id
+        }
+        return render(request, 'gat_tests/duplicate_school_modal.html', context)
+
+    # 2. POST запрос - выполняем клонирование
+    if request.method == 'POST':
+        source_quarter_id = request.POST.get('source_quarter')
+        target_quarter_id = request.POST.get('target_quarter')
+        new_date_str = request.POST.get('new_date')
+        
+        target_quarter = get_object_or_404(Quarter, pk=target_quarter_id)
+
+        # Находим все тесты в исходной четверти для этой школы
+        source_tests = GatTest.objects.filter(
+            school=school,
+            quarter_id=source_quarter_id
+        )
+
+        if not source_tests.exists():
+            messages.warning(request, "В выбранной исходной четверти нет тестов для копирования.")
+            # Закрываем модалку без обновления списка
+            trigger = {"close-modal": True}
+            return HttpResponse(status=204, headers={'HX-Trigger': json.dumps(trigger)})
+
+        count = 0
+        for original in source_tests:
+            # Копируем связи ManyToMany
+            original_subjects = list(original.subjects.all())
+            
+            # Создаем копию
+            original.pk = None
+            original.id = None
+            original._state.adding = True
+            
+            original.quarter = target_quarter
+            original.test_date = new_date_str
+            
+            # Логика инкремента номера (1 -> 2 -> 3 -> 4)
+            original.test_number = original.test_number + 1 if original.test_number < 4 else 4
+            
+            # Обновляем имя (Убираем старые пометки и добавляем правильное имя, если нужно)
+            # Например, если было "Тест (Копия)", можно просто оставить чистое имя или добавить новую логику
+            # Для простоты пока оставим имя как есть или обновим номер в имени, если оно там есть
+            
+            original.save()
+            original.subjects.set(original_subjects)
+            count += 1
+
+        success_message = f"Успешно склонировано {count} тестов в {target_quarter.name}."
+        messages.success(request, success_message)
+
+        # ✨ Возвращаем ОБНОВЛЕННЫЙ СПИСОК (как при фильтрации)
+        # Нам нужно вызвать логику gat_test_list_view, чтобы вернуть HTML списка
+        # Самый простой способ - редирект на список, но HTMX ждет HTML.
+        # Поэтому мы вручную сформируем контекст списка:
+        
+        # Trigger для закрытия модалки и показа сообщения
+        trigger = {
+            "close-modal": True, 
+            "show-message": {"text": success_message, "type": "success"},
+            # Важно: Заставим список обновиться, перейдя на вкладку новой четверти
+            "update-list-url": reverse('core:gat_test_list') + f"?quarter={target_quarter_id}" 
+        }
+        
+        # Хак для HTMX: говорим клиенту сделать GET запрос на список с новой четвертью
+        response = HttpResponse(status=204)
+        response['HX-Trigger'] = json.dumps(trigger)
+        response['HX-Location'] = reverse('core:gat_test_list') + f"?quarter={target_quarter_id}"
+        return response

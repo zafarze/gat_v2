@@ -13,6 +13,7 @@
     @close-modal.window="showModal = false"
     @close-delete-modal.window="showDeleteModal = false"
 >
+    {# --- ЗАГОЛОВОК СТРАНИЦЫ --- #}
     <div class="page-header">
         <div>
             <a href="{% url 'core:management' %}" class="back-link">&larr; Назад в Управление</a>
@@ -29,12 +30,60 @@
         {% endif %}
     </div>
 
-    <div class="space-y-8" id="test-list-container">
+    {# --- ПАНЕЛЬ ФИЛЬТРОВ И ПОИСКА --- #}
+    <div class="mb-6 space-y-4">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            
+            {# 1. ТАБЫ (Четверти) #}
+            <div class="flex space-x-1 bg-white p-1 rounded-lg shadow-sm border border-gray-200 overflow-x-auto max-w-full">
+                {# Кнопка ВСЕ #}
+                <button hx-get="{% url 'core:gat_test_list' %}?quarter=all&search={{ search_query }}"
+                        hx-target="#test-list-container"
+                        hx-push-url="true"
+                        class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap
+                               {% if not selected_quarter_id or selected_quarter_id == 'all' %}bg-indigo-600 text-white shadow{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+                    Все
+                </button>
+                {# Кнопки четвертей #}
+                {% for q in quarters %}
+                    <button hx-get="{% url 'core:gat_test_list' %}?quarter={{ q.id }}&search={{ search_query }}"
+                            hx-target="#test-list-container"
+                            hx-push-url="true"
+                            class="px-3 py-1.5 text-sm font-medium rounded-md transition-colors whitespace-nowrap
+                                   {% if selected_quarter_id|stringformat:'s' == q.id|stringformat:'s' %}bg-indigo-600 text-white shadow{% else %}text-gray-600 hover:bg-gray-100{% endif %}">
+                        {{ q.name }}
+                    </button>
+                {% endfor %}
+            </div>
+
+            {# 2. ПОЛЕ ПОИСКА #}
+            <div class="relative w-full md:w-64">
+                <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+                    <svg class="w-5 h-5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                    </svg>
+                </span>
+                <input type="text" 
+                       name="search"
+                       placeholder="Поиск школы..." 
+                       value="{{ search_query|default:'' }}"
+                       hx-get="{% url 'core:gat_test_list' %}?quarter={{ selected_quarter_id|default:'all' }}"
+                       hx-target="#test-list-container"
+                       hx-trigger="keyup changed delay:500ms"
+                       class="pl-10 block w-full rounded-lg border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm py-2">
+            </div>
+        </div>
+    </div>
+
+    {# --- КОНТЕЙНЕР СПИСКА (ОДИН РАЗ) --- #}
+    <div id="test-list-container" class="space-y-8">
         {% include 'gat_tests/partials/_test_list_content.html' %}
     </div>
 
-    {# Модальное окно для Cоздания/Редактирования #}
-    <div x-show="showModal" x-transition.opacity.duration.300 class="fixed inset-0 z-40 bg-gray-900 bg-opacity-50 overflow-y-auto" style="display: none;">
+    {# --- МОДАЛЬНЫЕ ОКНА --- #}
+    
+    {# Модальное окно для Создания/Редактирования #}
+    <div x-show="showModal" x-transition.opacity.duration.300 class="fixed inset-0 z-40 bg-gray-900 bg-opacity-50 overflow-y-auto" style="display: none;" x-cloak>
         <div class="flex min-h-full items-center justify-center p-4">
             <div @click.away="showModal = false" id="modal-content" class="w-full max-w-2xl">
                 <div class="flex items-center justify-center text-white">
@@ -49,7 +98,7 @@
     </div>
 
     {# Модальное окно Удаления #}
-    <div x-show="showDeleteModal" x-transition.opacity.duration.300 class="fixed inset-0 z-50 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4" style="display: none;">
+    <div x-show="showDeleteModal" x-transition.opacity.duration.300 class="fixed inset-0 z-50 bg-gray-900 bg-opacity-50 flex items-center justify-center p-4" style="display: none;" x-cloak>
         <div @click.away="showDeleteModal = false" class="bg-white rounded-xl shadow-xl p-8 max-w-md w-full text-center">
             <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-red-100 sm:h-10 sm:w-10">
                 <svg class="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>

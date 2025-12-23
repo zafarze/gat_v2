@@ -28,10 +28,12 @@ from core.views.crud import (
     SchoolClassListView, SchoolClassCreateView, SchoolClassUpdateView, SchoolClassDeleteView,
     SubjectListView, SubjectCreateView, SubjectUpdateView, SubjectDeleteView,
     GatTestCreateView, GatTestUpdateView, GatTestDeleteView, gat_test_list_view, gat_test_delete_results_view,
+    # Добавляем новую функцию сюда:
+    gat_test_duplicate_view, 
     TeacherNoteCreateView, TeacherNoteDeleteView,
     management_dashboard_view,
     QuestionCountListView, QuestionCountCreateView, QuestionCountUpdateView, QuestionCountDeleteView,
-    QuestionCountBulkCreateView
+    QuestionCountBulkCreateView, gat_test_duplicate_school_view,
 )
 
 app_name = 'core'
@@ -188,4 +190,6 @@ urlpatterns = [
     path('student/dashboard/', student_dashboard.student_dashboard_view, name='student_dashboard'),
     path('student/exams/', student_exams.exam_list_view, name='exam_list'),
     path('student/exams/<int:result_id>/review/', student_exams.exam_review_view, name='exam_review'),
+    path('dashboard/gat-tests/<int:pk>/duplicate/', gat_test_duplicate_view, name='gat_test_duplicate'),
+    path('dashboard/gat-tests/school/<int:school_pk>/duplicate-batch/', gat_test_duplicate_school_view, name='gat_test_duplicate_school'),
 ]
