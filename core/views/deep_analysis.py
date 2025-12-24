@@ -1,4 +1,4 @@
-# D:\New_GAT\core\views\deep_analysis.py (ПОЛНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ)
+# D:\New_GAT\core\views\deep_analysis.py
 
 import json
 from collections import defaultdict
@@ -13,19 +13,19 @@ from .permissions import get_accessible_schools
 @login_required
 def deep_analysis_view(request):
     """
-    Отображает страницу углубленного анализа с новой, исправленной логикой фильтров
-    и учетом прав доступа Эксперта.
+    Отображает страницу углубленного анализа с поддержкой сравнения GAT-тестов.
     """
     user = request.user
     profile = getattr(user, 'profile', None)
     form = DeepAnalysisForm(request.GET or None, user=user)
 
-    # --- Блок для подготовки контекста для нового фильтра ---
+    # Получаем сырые данные для сохранения состояния фильтров в JS и шаблоне
     selected_quarter_ids_str = request.GET.getlist('quarters')
     selected_school_ids_str = request.GET.getlist('schools')
     selected_class_ids_str = request.GET.getlist('school_classes')
     selected_subject_ids_str = request.GET.getlist('subjects')
-
+    
+    # Эти параметры нужны для работы JavaScript фильтров
     context = {
         'title': 'Углубленный анализ',
         'form': form,
@@ -44,7 +44,7 @@ def deep_analysis_view(request):
         'at_risk_students': [],
     }
 
-    # --- Логика группировки классов для фильтра ---
+    # --- Группировка классов для красивого Select (UI) ---
     grouped_classes = defaultdict(list)
     if selected_school_ids_str:
         try:
@@ -69,15 +69,20 @@ def deep_analysis_view(request):
         final_grouped_classes[group_name] = classes_in_group
     context['grouped_classes'] = final_grouped_classes
 
-    # --- Основная логика получения и обработки данных ---
+    # --- ОСНОВНАЯ ЛОГИКА ---
     if form.is_valid():
         selected_quarters = form.cleaned_data['quarters']
         selected_schools = form.cleaned_data['schools']
         selected_classes_qs = form.cleaned_data['school_classes']
         selected_subjects_qs = form.cleaned_data['subjects']
-        selected_test_numbers = form.cleaned_data['test_numbers']
+        
+        # Получаем номера тестов (конвертируем в int для надежности)
+        raw_test_numbers = form.cleaned_data['test_numbers']
+        selected_test_numbers = [int(n) for n in raw_test_numbers]
+        
         selected_days = form.cleaned_data['days']
 
+        # Подготовка списка ID классов (включая подклассы)
         selected_class_ids_list = list(selected_classes_qs.values_list('id', flat=True))
         parent_class_ids = selected_classes_qs.filter(parent__isnull=True).values_list('id', flat=True)
         if parent_class_ids:
@@ -85,6 +90,7 @@ def deep_analysis_view(request):
             selected_class_ids_list.extend(child_class_ids)
         final_class_ids = set(selected_class_ids_list)
 
+        # Базовый QuerySet
         accessible_schools = get_accessible_schools(user)
         base_qs = StudentResult.objects.filter(student__school_class__school__in=accessible_schools)
 
@@ -100,6 +106,7 @@ def deep_analysis_view(request):
         if selected_days:
             results_qs = results_qs.filter(gat_test__day__in=selected_days)
 
+        # Фильтрация по предметам (для экспертов)
         accessible_subjects_qs = Subject.objects.none()
         is_expert = profile and profile.role == UserProfile.Role.EXPERT
         
@@ -113,12 +120,14 @@ def deep_analysis_view(request):
         else:
             accessible_subjects_qs = selected_subjects_qs
 
+        # Фильтр JSON-поля scores_by_subject
         if accessible_subjects_qs.exists():
             subject_id_keys_to_filter = [str(s.id) for s in accessible_subjects_qs]
             results_qs = results_qs.filter(scores_by_subject__has_any_keys=subject_id_keys_to_filter)
         elif is_expert:
              results_qs = results_qs.none()
 
+        # Если предметы не выбраны, берем все, что есть в результатах
         if not accessible_subjects_qs.exists() and not is_expert and results_qs.exists():
              all_subject_ids_in_results = set()
              for r in results_qs:
@@ -126,25 +135,37 @@ def deep_analysis_view(request):
                      all_subject_ids_in_results.update(int(sid) for sid in r.scores_by_subject.keys())
              accessible_subjects_qs = Subject.objects.filter(id__in=all_subject_ids_in_results)
 
+        # --- ✨ НОВАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ COMPARE_BY ✨ ---
         if results_qs.exists() and accessible_subjects_qs.exists():
-            compare_by = 'school'
-            if (selected_schools.count() == 1 and
-                selected_classes_qs.exists() and
-                selected_classes_qs.filter(parent__isnull=False).count() > 1):
+            
+            # Считаем количество выбранных сущностей
+            tests_count = len(selected_test_numbers)
+            quarters_count = selected_quarters.count()
+            classes_selected_count = selected_classes_qs.filter(parent__isnull=False).count()
+            schools_selected_count = selected_schools.count() if selected_schools else accessible_schools.count()
+
+            compare_by = 'school' # По умолчанию
+            
+            # 1. Если выбрано несколько Тестов или Четвертей -> Сравниваем ТЕСТЫ (Динамика)
+            # Это решит вашу проблему: теперь при выборе GAT-1 и GAT-2 включится этот режим
+            if tests_count > 1 or quarters_count > 1:
+                compare_by = 'test'
+            # 2. Если выбрана 1 школа и несколько классов -> Сравниваем КЛАССЫ
+            elif schools_selected_count == 1 and classes_selected_count > 1:
                 compare_by = 'class'
-            elif not selected_schools and accessible_schools.count() > 1:
+            # 3. Иначе (много школ или ничего не выбрано) -> Сравниваем ШКОЛЫ
+            else:
                 compare_by = 'school'
 
             unique_subject_names = sorted(list(set(accessible_subjects_qs.values_list('name', flat=True))))
             subject_id_to_name_map = {s.id: s.name for s in accessible_subjects_qs}
             allowed_subject_ids_int = set(subject_id_to_name_map.keys())
 
-            # --- ✨ ИСПРАВЛЕНИЕ: Правильный вызов функции обработки ---
+            # Запускаем обработку с новым compare_by
             analysis_data, student_performance, new_unique_subjects = _process_results_for_deep_analysis(
                 results_qs, unique_subject_names, subject_id_to_name_map, allowed_subject_ids_int, compare_by
             )
 
-            # --- ✨ ИСПРАВЛЕНИЕ: Используем new_unique_subjects для графиков ---
             summary_chart_data, comparison_chart_data = _prepare_summary_charts(
                 analysis_data, new_unique_subjects
             )
@@ -169,13 +190,13 @@ def deep_analysis_view(request):
 
 
 # ==========================================================
-# --- Вспомогательные функции (с изменениями) ---
+# --- Вспомогательные функции ---
 # ==========================================================
 
 def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject_id_to_name_map, allowed_subject_ids_int, compare_by='school'):
     """ 
     Обрабатывает результаты. 
-    Автоматически разделяет предметы по параллелям, чтобы не смешивать вопросы.
+    Поддерживает compare_by = 'school', 'class', 'test'.
     """
     temp_analysis_data = {}
     student_performance = defaultdict(lambda: {
@@ -186,18 +207,31 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
     dynamic_subjects = set() 
 
     # Оптимизация: предзагрузка
-    results_qs = results_qs.select_related('student__school_class', 'student__school_class__school', 'student__school_class__parent')
+    results_qs = results_qs.select_related('student__school_class', 'student__school_class__school', 'student__school_class__parent', 'gat_test', 'gat_test__quarter')
 
     for result in results_qs:
         student = result.student
         school_class = student.school_class
         school = school_class.school
+        gat_test = result.gat_test
         
-        # Определяем параллель
+        # Определяем параллель для названия предмета
         parallel_name = school_class.parent.name if school_class.parent else school_class.name
         
-        entity_id = school_class.id if compare_by == 'class' else school.id
-        entity_name = school_class.name if compare_by == 'class' else school.name
+        # --- ✨ ЛОГИКА ОПРЕДЕЛЕНИЯ СУЩНОСТИ ДЛЯ СРАВНЕНИЯ ✨ ---
+        if compare_by == 'test':
+            # Сравниваем GAT-1 vs GAT-2 (или по четвертям)
+            # Группируем по уникальному сочетанию Теста и Четверти
+            entity_id = f"{gat_test.quarter.id}_{gat_test.test_number}" # ID для сортировки (Квартал потом Тест)
+            entity_name = f"GAT-{gat_test.test_number} ({gat_test.quarter.name})"
+        elif compare_by == 'class':
+            # Сравниваем Классы
+            entity_id = str(school_class.id)
+            entity_name = school_class.name
+        else:
+            # Сравниваем Школы
+            entity_id = str(school.id)
+            entity_name = school.name
 
         if entity_id not in temp_analysis_data:
             temp_analysis_data[entity_id] = {
@@ -222,7 +256,7 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
                     base_subject_name = subject_id_to_name_map.get(subject_id)
                     if not base_subject_name or not isinstance(answers, dict): continue
                     
-                    # ✨ Формируем уникальное имя предмета с учетом параллели
+                    # Имя предмета включает параллель, чтобы не смешивать программы 5 и 10 классов
                     full_subject_name = f"{base_subject_name} ({parallel_name})"
                     dynamic_subjects.add(full_subject_name)
 
@@ -285,7 +319,12 @@ def _prepare_summary_charts(analysis_data, unique_subject_names):
     })
 
     # 2. График сравнения
-    for entity_data in analysis_data.values():
+    # ✨ ВАЖНО: Сортируем сущности по ключу (ID), чтобы GAT-1 шел перед GAT-2
+    # Ключи у нас вида "QuarterID_TestNumber" (например "1_1", "1_2"), что дает верную сортировку
+    sorted_entity_ids = sorted(analysis_data.keys())
+
+    for ent_id in sorted_entity_ids:
+        entity_data = analysis_data[ent_id]
         entity_name = entity_data['name']
         data_points = [entity_data['subjects'].get(name, {}).get('overall_percentage', 0) for name in unique_subject_names]
         bar_datasets_comparison.append({'label': entity_name, 'data': data_points})
@@ -311,7 +350,6 @@ def _prepare_heatmap_data_and_summary(analysis_data):
     for entity_id, entity_data in analysis_data.items():
         entity_name = entity_data['name']
         for subject_name, subject_data in entity_data['subjects'].items():
-            # ✨ УБРАНА ПРОВЕРКА IMENI, так как имя теперь составное: "Предмет (Класс)"
             if not subject_data.get('question_details'): continue
 
             if subject_name not in heatmap_data:
@@ -374,7 +412,7 @@ def _prepare_heatmap_data_and_summary(analysis_data):
 
 
 def _prepare_trend_chart_data(results_qs, allowed_subject_ids_int, subject_id_to_name_map):
-    """ Готовит данные для графика динамики по четвертям (оставлено без изменений). """
+    """ Готовит данные для графика динамики по четвертям (без изменений). """
     quarters_with_results = results_qs.values_list('gat_test__quarter', flat=True).distinct()
     if quarters_with_results.count() < 2: return None
 
@@ -421,7 +459,6 @@ def _find_problematic_questions(analysis_data, top_n=3):
     for entity_data in analysis_data.values():
         entity_name = entity_data['name']
         for s_name, s_data in entity_data['subjects'].items():
-            # ✨ УБРАНА ПРОВЕРКА ИМЕНИ, т.к. имя теперь составное
             for q_num, q_stats in s_data.get('question_details', {}).items():
                 if q_stats.get('total', 0) > 0:
                     problems[s_name].append({
@@ -444,7 +481,6 @@ def _find_at_risk_students(student_performance, threshold=40):
     
     for student_id, data in student_performance.items():
         for subject_name, scores in data.get('subject_scores', {}).items():
-            # ✨ УБРАНА ПРОВЕРКА ИМЕНИ, т.к. имя теперь составное
             if not scores: continue
             
             avg_score = sum(scores) / len(scores)
