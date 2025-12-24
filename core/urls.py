@@ -4,7 +4,8 @@ from django.urls import path
 from .views import reports
 # --- Импорты из 'accounts' ---
 from accounts import views as account_views
-
+from core.views import ai_chat_page, ai_ask_api
+from django.shortcuts import render
 # --- Импорты из приложения 'core' ---
 # Импортируем модули с view-функциями
 from core.views import (
@@ -192,4 +193,8 @@ urlpatterns = [
     path('student/exams/<int:result_id>/review/', student_exams.exam_review_view, name='exam_review'),
     path('dashboard/gat-tests/<int:pk>/duplicate/', gat_test_duplicate_view, name='gat_test_duplicate'),
     path('dashboard/gat-tests/school/<int:school_pk>/duplicate-batch/', gat_test_duplicate_school_view, name='gat_test_duplicate_school'),
+    path('ai-chat/', ai_chat_page, name='ai_chat_page'),
+    path('api/ai-chat/ask/', ai_ask_api, name='ai_ask_api'),
+    # Простой тестовый путь
+    path('test-simple/', lambda request: render(request, 'test_simple.html'), name='test_simple'),
 ]

@@ -13,7 +13,7 @@ from .api import (
     toggle_school_access_api,
     toggle_subject_access_api,
     load_class_and_subjects_for_gat,
-    load_fields_for_qc
+    load_fields_for_qc,
 )
 
 # --- Импорты из crud.py ---
@@ -119,3 +119,5 @@ from .students import (
     parallel_create_export_accounts,
     data_cleanup_view
 )
+
+from .ai_chat import ai_chat_page, ai_ask_api

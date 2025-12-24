@@ -1,0 +1,100 @@
+{% extends 'base.html' %}
+
+{% block title %}AI Ассистент{% endblock %}
+
+{% block content %}
+<div class="h-[calc(100vh-8rem)] flex flex-col max-w-5xl mx-auto" 
+     x-data="{ 
+        inputVal: '',
+        scrollToBottom() {
+            this.$nextTick(() => {
+                const container = this.$refs.chatContainer;
+                container.scrollTo({ top: container.scrollHeight, behavior: 'smooth' });
+            });
+        }
+     }"
+     x-init="scrollToBottom()"
+>
+    <div class="flex items-center justify-between mb-6 px-4">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
+                    GAT Intelligence
+                </span>
+                <span class="bg-indigo-100 text-indigo-700 text-xs px-2 py-1 rounded-full border border-indigo-200">Beta</span>
+            </h1>
+            <p class="text-sm text-gray-500">Ваш персональный аналитик данных</p>
+        </div>
+        <button class="p-2 text-gray-400 hover:text-gray-600 transition-colors" title="Очистить историю">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+        </button>
+    </div>
+
+    <div class="flex-1 bg-white/50 backdrop-blur-sm border border-white/60 rounded-3xl shadow-xl overflow-hidden flex flex-col relative">
+        
+        <div 
+            id="chat-history" 
+            x-ref="chatContainer"
+            class="flex-1 overflow-y-auto p-6 space-y-2 scroll-smooth"
+        >
+            {% include 'partials/chat/_message_ai.html' with message="Привет! Я подключен к базе данных GAT. Спросите меня об успеваемости классов, рейтинге школ или проблемных темах." %}
+        </div>
+
+        <div id="loading-indicator" class="htmx-indicator absolute bottom-24 left-6 z-10">
+            <div class="bg-white border border-gray-100 px-4 py-2 rounded-full shadow-lg flex items-center gap-2">
+                <div class="flex space-x-1">
+                    <div class="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style="animation-delay: 0ms"></div>
+                    <div class="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style="animation-delay: 150ms"></div>
+                    <div class="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style="animation-delay: 300ms"></div>
+                </div>
+                <span class="text-xs font-medium text-gray-500">Анализирую данные...</span>
+            </div>
+        </div>
+
+        <div class="p-4 bg-white border-t border-gray-100">
+            <form 
+                hx-post="{% url 'core:ai_ask_api' %}" 
+                hx-target="#chat-history" 
+                hx-swap="beforeend"
+                hx-indicator="#loading-indicator"
+                @htmx:after-request="inputVal = ''; scrollToBottom()"
+                class="relative flex items-end gap-2"
+            >
+                <div class="relative flex-1">
+                    <input 
+                        type="text" 
+                        name="question" 
+                        x-model="inputVal"
+                        class="w-full bg-gray-50 border border-gray-200 text-gray-900 text-sm rounded-xl focus:ring-indigo-500 focus:border-indigo-500 block p-4 pr-12 shadow-inner transition-all placeholder-gray-400" 
+                        placeholder="Задайте вопрос по данным..." 
+                        autocomplete="off"
+                        required
+                    >
+                    <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+                        <kbd class="hidden md:inline-block px-2 py-0.5 text-xs font-medium text-gray-400 border border-gray-200 rounded-md bg-gray-100">↵</kbd>
+                    </div>
+                </div>
+
+                <button 
+                    type="submit" 
+                    class="p-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-lg hover:shadow-indigo-500/30 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed group"
+                    :disabled="!inputVal.trim()"
+                >
+                    <svg class="w-5 h-5 transform group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    /* Анимация появления сообщений */
+    @keyframes fadeInUp {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-fade-in-up {
+        animation: fadeInUp 0.3s ease-out forwards;
+    }
+</style>
+{% endblock %}
