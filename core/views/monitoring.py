@@ -65,7 +65,7 @@ def monitoring_view(request):
 
     context['grouped_classes'] = final_grouped_classes
 
-    return render(request, 'dashboard/monitoring.html', context)
+    return render(request, 'monitoring/monitoring.html', context)
 
 
 @login_required
