@@ -1,129 +1,334 @@
 {% load static %}
 <!DOCTYPE html>
-<html lang="ru" x-data="{ isSidebarOpen: false, sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true' }">
+<html lang="ru"
+      x-data="{
+        isSidebarOpen: false,
+        sidebarCollapsed: localStorage.getItem('sidebarCollapsed') === 'true'
+      }"
+      x-watch="sidebarCollapsed, value => localStorage.setItem('sidebarCollapsed', value)"
+>
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>{% block title %}GAT Report{% endblock %}</title>
+
+    <link rel="icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon">
     <link href="{% static 'css/style.css' %}" rel="stylesheet">
-    
+
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
     <style>
         [x-cloak] { display: none !important; }
-        .ai-widget-container { position: fixed; bottom: 24px; right: 24px; z-index: 9999; display: flex; flex-direction: column; align-items: flex-end; gap: 16px; }
-        .ai-chat-window { width: 350px; height: 500px; background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); border: 1px solid #e5e7eb; display: flex; flex-direction: column; overflow: hidden; }
-        .ai-fab-button { width: 64px; height: 64px; border-radius: 50%; background: linear-gradient(135deg, #4f46e5, #7c3aed); color: white; border: 4px solid white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 0.2s; box-shadow: 0 4px 12px rgba(79, 70, 229, 0.4); }
-        .ai-fab-button:hover { transform: scale(1.05); }
-        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
-        .htmx-request .htmx-indicator { opacity: 1; }
-        .htmx-request.htmx-indicator { opacity: 1; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        
+        /* === COMPACT WIDGET STYLES (RIGHT SIDE FIX) === */
+        
+        .ai-widget-wrapper {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 9999;
+            font-family: 'Inter', system-ui, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end; /* Выравнивание по правому краю */
+        }
+
+        /* Кнопка (Launcher) */
+        .ai-launcher {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+            border: 3px solid white;
+        }
+        .ai-launcher:hover { transform: scale(1.05); box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5); }
+        .ai-launcher:active { transform: scale(0.95); }
+
+        /* Окно чата */
+        .ai-window {
+            width: 340px;
+            height: 480px;
+            background: #fff;
+            border-radius: 20px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            margin-bottom: 16px;
+            transform-origin: bottom right;
+            border: 1px solid #f1f5f9;
+        }
+
+        /* --- АДАПТИВ ДЛЯ МОБИЛЬНЫХ (ИСПРАВЛЕНО) --- */
+        @media (max-width: 640px) {
+    .ai-widget-wrapper {
+        right: 16px;      /* Прижимает к правому краю */
+        left: auto;       /* Убирает привязку к левому краю */
+        align-items: flex-end;
+    }
+}
+            
+            .ai-window {
+                width: 300px;     /* Чуть уже на мобилках */
+                height: 450px;
+                position: absolute;
+                bottom: 70px;     /* Появляется над кнопкой */
+                right: 0;         /* Прижато к правому краю враппера */
+                margin-bottom: 0;
+            }
+            
+            /* Если экран совсем узкий, можно сделать на всю ширину, но пока оставим справа */
+        }
+
+        /* Остальные стили (Header, Messages, Input) без изменений... */
+        .ai-header {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            padding: 16px;
+            color: white;
+            flex-shrink: 0;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .ai-messages {
+            flex: 1;
+            padding: 16px;
+            overflow-y: auto;
+            background: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .msg-bubble {
+            max-width: 85%;
+            padding: 10px 14px;
+            border-radius: 16px;
+            font-size: 13px;
+            line-height: 1.5;
+            position: relative;
+        }
+        .msg-ai {
+            align-self: flex-start;
+            background: #fff;
+            color: #334155;
+            border-bottom-left-radius: 4px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+            border: 1px solid #e2e8f0;
+        }
+        .msg-user {
+            align-self: flex-end;
+            background: #6366f1;
+            color: white;
+            border-bottom-right-radius: 4px;
+            box-shadow: 0 2px 5px rgba(99, 102, 241, 0.2);
+        }
+
+        .ai-footer {
+            padding: 12px;
+            background: #fff;
+            border-top: 1px solid #f1f5f9;
+        }
+        .ai-input-box {
+            display: flex;
+            align-items: center;
+            background: #f1f5f9;
+            border-radius: 24px;
+            padding: 4px 4px 4px 16px;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }
+        .ai-input-box:focus-within {
+            background: #fff;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        .ai-input {
+            flex: 1;
+            background: transparent;
+            border: none;
+            outline: none;
+            font-size: 13px;
+            max-height: 80px;
+            resize: none;
+            padding: 8px 0;
+        }
+        .ai-send-btn {
+            width: 36px;
+            height: 36px;
+            background: #6366f1;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            margin-left: 8px;
+            transition: background 0.2s;
+        }
+        .ai-send-btn:hover { background: #4f46e5; }
+        .ai-send-btn:disabled { background: #cbd5e1; }
+
+        .pop-enter-active, .pop-leave-active { transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1); }
+        .pop-enter-from, .pop-leave-to { opacity: 0; transform: scale(0.9) translateY(20px); }
+        .pop-enter-to, .pop-leave-from { opacity: 1; transform: scale(1) translateY(0); }
     </style>
+
     {% block head %}{% endblock %}
 </head>
 
 <body class="font-sans bg-gray-100" hx-headers='{"X-CSRFToken": "{{ csrf_token }}"}'>
 
-<div class="flex h-screen overflow-hidden">
+{# === ОСНОВНОЙ ЛЕЙАУТ === #}
+<div class="flex h-screen overflow-hidden"
+     @force-refresh.window="setTimeout(() => window.location.reload(), 2000)"
+>
+    {# 1. МОБИЛЬНЫЙ САЙДБАР #}
+    <div class="lg:hidden">
+        <div x-show="isSidebarOpen" x-transition.opacity @click="isSidebarOpen = false" class="fixed inset-0 bg-gray-600 bg-opacity-75 z-30" x-cloak></div>
+        <div x-show="isSidebarOpen" class="fixed inset-y-0 left-0 flex-shrink-0 z-40" x-cloak>
+            <div class="relative flex-1 flex flex-col w-full bg-gray-800 h-full">
+                <div class="absolute top-0 right-0 -mr-12 pt-2">
+                    <button @click="isSidebarOpen = false" class="ml-1 flex items-center justify-center h-10 w-10 rounded-full focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white">
+                        <svg class="h-6 w-6 text-white" stroke="currentColor" fill="none" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                </div>
+                {% include 'components/sidebar.html' %}
+            </div>
+        </div>
+    </div>
+
+    {# 2. ДЕСКТОПНЫЙ САЙДБАР #}
     <div class="hidden lg:flex lg:flex-shrink-0">
-        <div class="flex flex-col bg-gray-800" :class="{'w-64': !sidebarCollapsed, 'w-20': sidebarCollapsed}">
+        <div class="flex flex-col transition-all duration-300 bg-gray-800" :class="{'w-64': !sidebarCollapsed, 'w-20': sidebarCollapsed}">
             {% include 'components/sidebar.html' %}
         </div>
     </div>
+
+    {# 3. ОСНОВНОЙ КОНТЕНТ #}
     <div class="flex flex-col w-0 flex-1 overflow-hidden">
         {% include 'components/header.html' %}
-        <main class="flex-1 relative overflow-y-auto p-6 scroll-smooth">
-            {% block content %}{% endblock %}
+        <main class="flex-1 relative overflow-y-auto focus:outline-none scroll-smooth">
+            <div class="py-6 px-4 sm:px-6 lg:px-8 pb-32"> 
+                {% block content %}{% endblock %}
+            </div>
         </main>
     </div>
 </div>
 
+{# === УВЕДОМЛЕНИЯ И МОДАЛКИ === #}
+<div x-data="{ show: false, message: '', type: 'success' }" @show-message.window="message = $event.detail.text; type = $event.detail.type; show = true; setTimeout(() => show = false, 8000);" x-show="show" x-transition class="fixed top-5 left-1/2 -translate-x-1/2 z-[60] rounded-lg p-4 max-w-md w-full border-l-4 shadow-lg bg-white" :class="{'border-green-500 text-green-700 bg-green-50': type === 'success', 'border-red-500 text-red-700 bg-red-50': type === 'error'}" style="display: none;" x-cloak><p class="font-bold text-center" x-text="message"></p></div>
+<div x-data="{ showNested: false, nestedUrl: '' }" x-show="showNested" @open-nested-modal.window="showNested = true; nestedUrl = $event.detail.url; $nextTick(() => { htmx.ajax('GET', nestedUrl, { target: '#nested-modal-content' }); });" @close-nested-modal.window="showNested = false; htmx.find('#nested-modal-content').innerHTML = '';" x-transition.opacity class="fixed inset-0 z-[70] bg-gray-900 bg-opacity-60 flex items-center justify-center p-4" style="display: none;" x-cloak><div @click.away="showNested = false" class="w-full max-w-lg relative bg-white rounded-lg overflow-hidden"><div id="nested-modal-content"></div></div></div>
+
+{# === 🔥 COMPACT AI WIDGET (Final) === #}
 <div x-data="{ 
         isOpen: false, 
         inputVal: '',
-        scrollToBottom() { this.$nextTick(() => { const el = this.$refs.chatHistory; if(el) el.scrollTop = el.scrollHeight; }); }
+        scrollToBottom() { 
+            this.$nextTick(() => { 
+                const el = this.$refs.chatHistory; 
+                if(el) el.scrollTop = el.scrollHeight; 
+            }); 
+        }
      }" 
-     x-init="scrollToBottom()"
-     class="ai-widget-container">
+     class="ai-widget-wrapper"
+     x-cloak>
 
-    <div x-show="isOpen" x-transition.scale.origin.bottom.right class="ai-chat-window" style="display: none;">
-        <div class="p-4 bg-indigo-600 text-white flex justify-between items-center shadow-md">
-            <div class="flex items-center gap-2">
-                <span class="text-xl">✨</span>
-                <div>
-                    <h3 class="font-bold text-sm">GAT Assistant</h3>
-                    <div class="flex items-center gap-1 text-xs opacity-80"><span class="w-2 h-2 bg-green-400 rounded-full"></span> Online</div>
-                </div>
+    {# --- ОКНО ЧАТА --- #}
+    <div x-show="isOpen" 
+         x-transition:enter="pop-enter-active"
+         x-transition:enter-start="pop-enter-from"
+         x-transition:enter-end="pop-enter-to"
+         x-transition:leave="pop-leave-active"
+         x-transition:leave-start="pop-leave-from"
+         x-transition:leave-end="pop-leave-to"
+         class="ai-window">
+         
+        {# Шапка #}
+        <div class="ai-header">
+            <div class="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-sm backdrop-blur-sm">🤖</div>
+            <div>
+                <p class="text-sm font-bold leading-none">GAT Помощник</p>
+                <p class="text-[10px] opacity-80 mt-1 flex items-center gap-1"><span class="w-1.5 h-1.5 bg-green-400 rounded-full"></span>Online</p>
             </div>
-            <button @click="isOpen = false" class="hover:bg-white/20 p-1 rounded">✕</button>
+            <button @click="isOpen = false" class="ml-auto p-1 hover:bg-white/10 rounded lg:hidden">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
         </div>
 
-        <div x-ref="chatHistory" id="widget-chat-history" class="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50">
-            <div class="flex items-start gap-2.5">
-                <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-lg border border-indigo-200">🤖</div>
-                <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 text-sm text-gray-800">
-                    Привет! Я помогу проанализировать данные школы.
-                </div>
+        {# Сообщения #}
+        <div x-ref="chatHistory" id="widget-chat-history" class="ai-messages">
+            <div class="msg-bubble msg-ai">
+                Привет! 👋 Я вижу все данные в базе. Спроси меня: "Какая школа лидирует?" 🚀
             </div>
+            
             {% if request.session.ai_chat_history %}
                 {% for msg in request.session.ai_chat_history %}
-                    {% if msg.role == 'user' %}
-                        <div class="flex justify-end">
-                            <div class="bg-indigo-600 text-white p-3 rounded-xl rounded-tr-none shadow-sm text-sm max-w-[85%]">{{ msg.text }}</div>
-                        </div>
-                    {% else %}
-                        <div class="flex items-start gap-2.5">
-                            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-lg border border-indigo-200 flex-shrink-0">🤖</div>
-                            <div class="bg-white p-3 rounded-xl shadow-sm border border-gray-200 text-sm text-gray-800 max-w-[85%]">
-                                <span class="font-bold text-indigo-600 block mb-1">GAT AI</span>
-                                <div class="whitespace-pre-wrap">{{ msg.text }}</div>
-                            </div>
-                        </div>
-                    {% endif %}
+                    <div class="msg-bubble {% if msg.role == 'user' %}msg-user{% else %}msg-ai{% endif %}">
+                        {{ msg.text|linebreaksbr }}
+                    </div>
                 {% endfor %}
             {% endif %}
+            
+            <div id="ai-loading" class="htmx-indicator text-xs text-indigo-500 font-medium flex items-center gap-1">
+                <span class="animate-bounce">●</span> Загрузка...
+            </div>
         </div>
 
-        <div id="ai-loading" class="htmx-indicator px-4 py-2 text-xs text-gray-500 bg-gray-50 flex items-center gap-2">
-            <div class="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"></div>
-            <div class="w-2 h-2 bg-indigo-600 rounded-full animate-bounce delay-75"></div>
-            <div class="w-2 h-2 bg-indigo-600 rounded-full animate-bounce delay-150"></div>
-            Анализирую...
-        </div>
-
-        <div class="p-3 bg-white border-t border-gray-100">
-            <form hx-post="{% url 'core:ai_ask_api' %}" 
-                  hx-target="#widget-chat-history" 
-                  hx-swap="beforeend"
-                  hx-indicator="#ai-loading"
-                  @submit="inputVal = ''; scrollToBottom()" 
-                  class="relative flex gap-2">
-                {% csrf_token %}
-                <input type="text" name="question" x-model="inputVal"
-                       class="w-full bg-gray-100 border-0 rounded-xl px-4 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
-                       placeholder="Спроси о статистике..." autocomplete="off"
-                       @keydown.enter.prevent="$refs.submitBtn.click()">
-                <button type="submit" x-ref="submitBtn" :disabled="!inputVal.trim()"
-                        class="bg-indigo-600 text-white p-2 rounded-xl disabled:opacity-50 hover:bg-indigo-700 transition">➤</button>
-            </form>
+        {# Ввод #}
+        <div class="ai-footer">
+            {% if user.is_authenticated %}
+                <form hx-post="{% url 'core:ai_ask_api' %}" 
+                      hx-target="#widget-chat-history" 
+                      hx-swap="beforeend"
+                      hx-indicator="#ai-loading"
+                      @submit="setTimeout(() => { inputVal = ''; scrollToBottom(); }, 50)"
+                >
+                    {% csrf_token %}
+                    <div class="ai-input-box">
+                        <textarea name="question" x-model="inputVal" rows="1" class="ai-input" placeholder="Задай вопрос..." @keydown.enter.prevent="if(!event.shiftKey) $el.form.querySelector('button').click()"></textarea>
+                        <button type="submit" :disabled="!inputVal.trim()" class="ai-send-btn">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                        </button>
+                    </div>
+                </form>
+            {% else %}
+                <div class="text-center text-xs text-gray-500"><a href="{% url 'core:login' %}" class="text-indigo-600 font-bold">Войдите</a> для чата.</div>
+            {% endif %}
         </div>
     </div>
 
-    <button @click="isOpen = !isOpen; if(isOpen) scrollToBottom()" class="ai-fab-button">
-        <span x-show="!isOpen" class="text-3xl">💬</span>
-        <span x-show="isOpen" class="text-xl">✖</span>
-    </button>
+    {# --- КНОПКА (LAUNCHER) --- #}
+    <div @click="isOpen = !isOpen" class="ai-launcher">
+        <svg x-show="!isOpen" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+        <svg x-show="isOpen" class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display: none;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+    </div>
 </div>
 
 {% block scripts %}{% endblock %}
 
 <script>
-    document.body.addEventListener('htmx:afterSwap', function(evt) {
-        if(evt.detail.target.id === 'widget-chat-history') {
-            evt.detail.target.scrollTop = evt.detail.target.scrollHeight;
-        }
+    document.addEventListener('DOMContentLoaded', function () {
+        {% if messages %}
+            {% for message in messages %}
+                window.dispatchEvent(new CustomEvent('show-message', { detail: { text: '{{ message|escapejs }}', type: '{{ message.tags }}' } }));
+            {% endfor %}
+        {% endif %}
+        document.body.addEventListener('htmx:configRequest', (event) => { event.detail.headers['X-CSRFToken'] = '{{ csrf_token }}'; });
+        document.body.addEventListener('htmx:afterSwap', function(evt) {
+            if(evt.detail.target.id === 'widget-chat-history') { evt.detail.target.scrollTop = evt.detail.target.scrollHeight; }
+        });
     });
 </script>
 

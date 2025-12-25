@@ -4,7 +4,6 @@
 {% block head %}
 <link rel="stylesheet" href="{% static 'css/deep_analysis.css' %}">
 <style>
-    /* ✨ 2. СТИЛИ ДЛЯ ЦВЕТНОЙ ТАБЛИЦЫ И КРАСИВЫХ КНОПОК */
     .table-header {
         @apply px-4 py-3 text-left text-xs font-medium text-gray-600 uppercase tracking-wider;
     }
@@ -16,7 +15,7 @@
 
     @media print {
         body { background-color: white !important; }
-        aside, header, .action-buttons, .no-print, form, .glass-card { display: none !important; }
+        aside, header, .action-buttons, .no-print, form, .glass-card, .lang-switcher { display: none !important; }
         main { padding: 0 !important; margin: 0 !important; }
         #table-wrapper { overflow: visible !important; height: auto !important; max-height: none !important; box-shadow: none !important; border: none !important; }
     }
@@ -25,122 +24,136 @@
 
 {% block content %}
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+    
+    {# --- ЗАГОЛОВОК И ПЕРЕКЛЮЧАТЕЛЬ ЯЗЫКОВ --- #}
     <div class="flex justify-between items-center">
-        <h1 id="monitoring-title" class="text-3xl font-bold text-gray-800">Мониторинг</h1>
+        <h1 id="monitoring-title" class="text-3xl font-bold text-gray-800" data-lang-key="title">Мониторинг</h1>
+        
+        <div class="lang-switcher bg-white border rounded-lg shadow-sm p-1 flex items-center space-x-1">
+            <button onclick="setLanguage('ru')" class="px-3 py-1 text-xs font-bold rounded hover:bg-gray-100 transition" id="btn-lang-ru">RU</button>
+            <button onclick="setLanguage('tj')" class="px-3 py-1 text-xs font-bold rounded hover:bg-gray-100 transition" id="btn-lang-tj">TJ</button>
+            <button onclick="setLanguage('en')" class="px-3 py-1 text-xs font-bold rounded hover:bg-gray-100 transition" id="btn-lang-en">EN</button>
+        </div>
     </div>
 
+    {# --- ФИЛЬТРЫ --- #}
     <div class="glass-card p-6 rounded-lg mb-8 no-print">
-        <h2 id="monitoring-subtitle" class="text-2xl font-bold text-gray-800 mb-6">Фильтры</h2>
+        <h2 id="monitoring-subtitle" class="text-2xl font-bold text-gray-800 mb-6" data-lang-key="filters">Фильтры</h2>
         <form method="get" id="monitoring-form">
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 <div class="filter-card" data-filter="quarters">
-                    <label id="label-quarter" class="font-bold text-gray-700 text-lg">{{ form.quarters.label }}</label>
+                    <label class="font-bold text-gray-700 text-lg" data-lang-key="quarters">{{ form.quarters.label }}</label>
                     <div class="chip-container items-center">{% for choice in form.quarters %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
                 </div>
                 <div class="filter-card" data-filter="schools">
-                    <label id="label-schools" class="font-bold text-gray-700 text-lg">{{ form.schools.label }}</label>
+                    <label class="font-bold text-gray-700 text-lg" data-lang-key="schools">{{ form.schools.label }}</label>
                     <div class="chip-container items-center">{% for choice in form.schools %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
                 </div>
                 <div class="filter-card" id="classes-filter-card" data-filter="school_classes">
-                    <label id="label-classes" class="font-bold text-gray-700 text-lg">{{ form.school_classes.label }}</label>
+                    <label class="font-bold text-gray-700 text-lg" data-lang-key="classes">{{ form.school_classes.label }}</label>
                     <div id="classes-chip-container" class="chip-container items-center">
-                        {% if grouped_classes %}{% for group_name, classes_in_group in grouped_classes.items %}<div class="w-full"><p class="font-semibold text-gray-600 text-sm mt-2 mb-1">{{ group_name }}</p>{% for choice in classes_in_group %}<label class="chip"><input type="checkbox" name="school_classes" value="{{ choice.id }}" {% if choice.id|stringformat:"s" in selected_class_ids %}checked{% endif %}><span>{{ choice.name }}</span></label>{% endfor %}</div>{% endfor %}{% else %}<p class="text-sm text-gray-500">Сначала выберите школу.</p>{% endif %}
+                        {% if grouped_classes %}{% for group_name, classes_in_group in grouped_classes.items %}<div class="w-full"><p class="font-semibold text-gray-600 text-sm mt-2 mb-1">{{ group_name }}</p>{% for choice in classes_in_group %}<label class="chip"><input type="checkbox" name="school_classes" value="{{ choice.id }}" {% if choice.id|stringformat:"s" in selected_class_ids %}checked{% endif %}><span>{{ choice.name }}</span></label>{% endfor %}</div>{% endfor %}{% else %}<p class="text-sm text-gray-500" data-lang-key="select_school_first">Сначала выберите школу.</p>{% endif %}
                     </div>
                 </div>
                 <div class="filter-card" data-filter="test_numbers">
-                    <label id="label-tests" class="font-bold text-gray-700 text-lg">{{ form.test_numbers.label }}</label>
+                    <label class="font-bold text-gray-700 text-lg" data-lang-key="tests">{{ form.test_numbers.label }}</label>
                     <div class="chip-container items-center">{% for choice in form.test_numbers %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
                 </div>
                 <div class="filter-card" data-filter="days">
-                    <label class="font-bold text-gray-700 text-lg">{{ form.days.label }}</label>
+                    <label class="font-bold text-gray-700 text-lg" data-lang-key="days">{{ form.days.label }}</label>
                     <div class="chip-container items-center">{% for choice in form.days %}<label class="chip">{{ choice.tag }}<span>{{ choice.choice_label }}</span></label>{% endfor %}</div>
                 </div>
                 <div class="filter-card" data-filter="subjects">
-                    <label id="label-subjects" class="font-bold text-gray-700 text-lg">{{ form.subjects.label }}</label>
-                    <div id="subjects-chip-container" class="chip-container items-center"><p class="text-sm text-gray-500">Выберите школу, класс и тест.</p></div>
+                    <label class="font-bold text-gray-700 text-lg" data-lang-key="subjects">{{ form.subjects.label }}</label>
+                    <div id="subjects-chip-container" class="chip-container items-center"><p class="text-sm text-gray-500" data-lang-key="select_all_first">Выберите школу, класс и тест.</p></div>
                 </div>
             </div>
             <div class="mt-8 border-t border-gray-200 pt-6 flex justify-end space-x-4">
-                <a id="btn-reset" href="{% url 'core:monitoring' %}" class="btn btn-secondary">Сбросить</a>
-                <button id="btn-apply" type="submit" class="btn btn-primary">Применить</button>
+                <a id="btn-reset" href="{% url 'core:monitoring' %}" class="btn btn-secondary" data-lang-key="reset">Сбросить</a>
+                <button id="btn-apply" type="submit" class="btn btn-primary" data-lang-key="apply">Применить</button>
             </div>
         </form>
     </div>
 
     {% if has_results %}
         <div class="mt-8">
-            {% if table_rows %}
-                <div id="table-wrapper" class="bg-white shadow-md rounded-lg overflow-x-auto">
-                    <div class="p-4 border-b flex justify-between items-center action-buttons">
-                        <h2 class="text-lg font-semibold">
-                            <span id="students-found-text">Найдено студентов</span>: {{ table_rows|length }}
-                        </h2>
-                        <div class="flex items-center gap-3">
-                            <button onclick="window.print()" class="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow transition">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M19 8l-7 7-7-7"></path>
-                                </svg>
-                                Печать
-                            </button>
-                            <a href="{% url 'core:export_monitoring_excel' %}?{{ request.GET.urlencode }}" class="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md shadow transition">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M16 16v4H8v-4M14 2H10v6H6l6 6 6-6h-4V2z"></path>
-                                </svg>
-                                Excel
-                            </a>
-                            <a href="{% url 'core:export_monitoring_pdf' %}?{{ request.GET.urlencode }}" class="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md shadow transition">
-                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H9a2 2 0 00-2 2v2m12 4v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6m16-2H3"></path>
-                                </svg>
-                                PDF
-                            </a>
-                        </div>
+            <div id="table-wrapper" class="bg-white shadow-md rounded-lg overflow-x-auto">
+                <div class="p-4 border-b flex justify-between items-center action-buttons">
+                    <h2 class="text-lg font-semibold">
+                        <span data-lang-key="found_students">Найдено студентов</span>: {{ table_rows|length }}
+                    </h2>
+                    <div class="flex items-center gap-3">
+                        <button onclick="window.print()" class="flex items-center px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-md shadow transition">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 8l-7 7-7-7"></path></svg>
+                            <span data-lang-key="print">Печать</span>
+                        </button>
+                        <a href="{% url 'core:export_monitoring_excel' %}?{{ request.GET.urlencode }}" class="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md shadow transition">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 16v4H8v-4M14 2H10v6H6l6 6 6-6h-4V2z"></path></svg>
+                            Excel
+                        </a>
+                        <a href="{% url 'core:export_monitoring_pdf' %}?{{ request.GET.urlencode }}" class="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md shadow transition">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H9a2 2 0 00-2 2v2m12 4v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6m16-2H3"></path></svg>
+                            PDF
+                        </a>
                     </div>
-                    <table class="min-w-full">
-                        <thead class="bg-indigo-50">
-                            <tr>
-                                <th rowspan="2" class="table-header">№</th>
-                                <th rowspan="2" class="table-header">ФИО Студента</th>
-                                <th rowspan="2" class="table-header">Класс</th>
-                                <th rowspan="2" class="table-header">Тест</th>
-                                {% for header in table_headers %}
-                                    <th class="table-header text-center border-l">{{ header.subject.abbreviation|default:header.subject.name }}</th>
-                                {% endfor %}
-                                <th rowspan="2" class="table-header border-l">Общий балл</th>
-                            </tr>
-                            <tr>
-                                {% for header in table_headers %}
-                                    <th class="px-4 py-2 text-center text-xs font-normal text-gray-500 border-l">(из {{ header.q_count }})</th>
-                                {% endfor %}
-                            </tr>
-                        </thead>
-                        <tbody id="monitoring-table-body">
-                            {% for row in table_rows %}
-                            <tr data-href="{% url 'core:student_progress' row.student.id %}" class="bg-slate-50 hover:bg-blue-100 cursor-pointer border-b border-slate-200">
-                                <td class="table-cell text-center text-gray-500">{{ forloop.counter }}</td>
-                                <td class="table-cell font-medium text-gray-900">{{ row.student.full_name_ru }}</td>
-                                <td class="table-cell text-center text-gray-700">{{ row.student.school_class.name }}</td>
-                                <td class="table-cell text-center text-gray-700">{{ row.result_obj.gat_test.name }}</td>
-                                {% for header in table_headers %}
-                                    <td class="table-cell text-center">
-                                        {% with score_data=row.scores_by_subject|get_item:header.subject.id %}
-                                            {% if score_data and score_data.score != "—" %}
-                                                <span class="font-semibold text-gray-800">{{ score_data.score }}</span>
-                                            {% else %}
-                                                —
-                                            {% endif %}
-                                        {% endwith %}
-                                    </td>
-                                {% endfor %}
-                                <td class="table-cell text-center font-bold text-indigo-600">{{ row.total_score }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
                 </div>
-            {% else %}
-                <div class="info-box bg-yellow-50 border-yellow-400"><p class="text-yellow-700">По вашему запросу ничего не найдено. Попробуйте изменить параметры фильтра.</p></div>
-            {% endif %}
+                <table class="min-w-full">
+                    <thead class="bg-indigo-50">
+                        <tr>
+                            <th rowspan="2" class="table-header">№</th>
+                            <th rowspan="2" class="table-header" data-lang-key="th_name">ФИО Студента</th>
+                            <th rowspan="2" class="table-header" data-lang-key="th_class">Класс</th>
+                            <th rowspan="2" class="table-header" data-lang-key="th_test">Тест</th>
+                            {% for header in table_headers %}
+                                <th class="table-header text-center border-l">{{ header.subject.abbreviation|default:header.subject.name }}</th>
+                            {% endfor %}
+                            <th rowspan="2" class="table-header border-l" data-lang-key="th_total">Общий балл</th>
+                        </tr>
+                        <tr>
+                            {% for header in table_headers %}
+                                <th class="px-4 py-2 text-center text-xs font-normal text-gray-500 border-l">
+                                    <span data-lang-key="from">из</span> {{ header.q_count }}
+                                </th>
+                            {% endfor %}
+                        </tr>
+                    </thead>
+                    <tbody id="monitoring-table-body">
+                        {% for row in table_rows %}
+                        <tr data-href="{% url 'core:student_progress' row.student.id %}" class="bg-slate-50 hover:bg-blue-100 cursor-pointer border-b border-slate-200">
+                            <td class="table-cell text-center text-gray-500">{{ forloop.counter }}</td>
+                            <td class="table-cell font-medium text-gray-900">{{ row.student.full_name_ru }}</td>
+                            <td class="table-cell text-center text-gray-700">{{ row.student.school_class.name }}</td>
+                            <td class="table-cell text-center text-gray-700">{{ row.result_obj.gat_test.name }}</td>
+                            {% for header in table_headers %}
+                                <td class="table-cell text-center">
+                                    {% with score_data=row.scores_by_subject|get_item:header.subject.id %}
+                                        {% if score_data and score_data.score != "—" %}
+                                            <span class="font-semibold text-gray-800">{{ score_data.score }}</span>
+                                        {% else %}
+                                            —
+                                        {% endif %}
+                                    {% endwith %}
+                                </td>
+                            {% endfor %}
+                            <td class="table-cell text-center font-bold text-indigo-600">{{ row.total_score }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    {% elif is_filtered %}
+        {# ✨ ЭТОТ БЛОК ТЕПЕРЬ ТОЧНО ПОКАЖЕТСЯ, ЕСЛИ ДАННЫХ НЕТ #}
+        <div class="mt-8">
+            <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-2xl shadow-md flex items-start gap-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                <div>
+                    <h3 class="font-bold text-yellow-800">Данные не найдены</h3>
+                    <p class="text-yellow-700" data-lang-key="no_data">По вашему запросу ничего не найдено. Возможно, по выбранным критериям (Предмет/Класс/Тест) еще нет результатов.</p>
+                </div>
+            </div>
+        </div>
+    {% endif %}
         </div>
     {% endif %}
 </div>
@@ -148,7 +161,110 @@
 
 {% block scripts %}
 <script>
+// --- СИСТЕМА ПЕРЕВОДОВ (RU, TJ, EN) ---
+const translations = {
+    ru: {
+        title: "Мониторинг",
+        filters: "Фильтры",
+        quarters: "Четверти",
+        schools: "Школы",
+        classes: "Классы",
+        tests: "Тесты",
+        days: "Дни",
+        subjects: "Предметы",
+        reset: "Сбросить",
+        apply: "Применить",
+        found_students: "Найдено студентов",
+        print: "Печать",
+        th_name: "ФИО Студента",
+        th_class: "Класс",
+        th_test: "Тест",
+        th_total: "Общий балл",
+        from: "из",
+        select_school_first: "Сначала выберите школу.",
+        select_all_first: "Выберите школу, класс и тест.",
+        no_data: "По вашему запросу ничего не найдено."
+    },
+    tj: {
+        title: "Мониторинг",
+        filters: "Филтрҳо",
+        quarters: "Чорякҳо",
+        schools: "Мактабҳо",
+        classes: "Синфҳо",
+        tests: "Тестҳо",
+        days: "Рӯзҳо",
+        subjects: "Фанҳо",
+        reset: "Тоза кардан",
+        apply: "Тасдиқ",
+        found_students: "Донишҷӯён",
+        print: "Чоп",
+        th_name: "Ному насаб",
+        th_class: "Синф",
+        th_test: "Тест",
+        th_total: "Холи умумӣ",
+        from: "аз",
+        select_school_first: "Аввал мактабро интихоб кунед.",
+        select_all_first: "Мактаб, синф ва тестро интихоб кунед.",
+        no_data: "Бо дархости шумо чизе ёфт нашуд."
+    },
+    en: {
+        title: "Monitoring",
+        filters: "Filters",
+        quarters: "Quarters",
+        schools: "Schools",
+        classes: "Classes",
+        tests: "Tests",
+        days: "Days",
+        subjects: "Subjects",
+        reset: "Reset",
+        apply: "Apply",
+        found_students: "Students Found",
+        print: "Print",
+        th_name: "Student Name",
+        th_class: "Class",
+        th_test: "Test",
+        th_total: "Total Score",
+        from: "of",
+        select_school_first: "Select school first.",
+        select_all_first: "Select school, class and test.",
+        no_data: "No results found for your query."
+    }
+};
+
+function setLanguage(lang) {
+    // 1. Сохраняем выбор
+    localStorage.setItem('gat_monitoring_lang', lang);
+    
+    // 2. Обновляем кнопки (стиль активной)
+    ['ru', 'tj', 'en'].forEach(l => {
+        const btn = document.getElementById(`btn-lang-${l}`);
+        if(btn) {
+            if(l === lang) {
+                btn.classList.add('bg-indigo-600', 'text-white');
+                btn.classList.remove('hover:bg-gray-100');
+            } else {
+                btn.classList.remove('bg-indigo-600', 'text-white');
+                btn.classList.add('hover:bg-gray-100');
+            }
+        }
+    });
+
+    // 3. Переводим тексты
+    const t = translations[lang];
+    document.querySelectorAll('[data-lang-key]').forEach(el => {
+        const key = el.dataset.langKey;
+        if(t[key]) {
+            el.innerText = t[key];
+        }
+    });
+}
+
 document.addEventListener('DOMContentLoaded', function () {
+    // Восстанавливаем язык или ставим RU
+    const savedLang = localStorage.getItem('gat_monitoring_lang') || 'ru';
+    setLanguage(savedLang);
+
+    // --- СТАРЫЙ КОД ФИЛЬТРОВ ---
     const form = document.getElementById('monitoring-form');
     if (!form) return;
 
@@ -172,7 +288,8 @@ document.addEventListener('DOMContentLoaded', function () {
     const loadClasses = () => {
         const school_ids = getSelectedValues(schoolsCard);
         if (school_ids.length === 0) {
-            classesContainer.innerHTML = '<p class="text-sm text-gray-500">Сначала выберите школу.</p>';
+            const currentLang = localStorage.getItem('gat_monitoring_lang') || 'ru';
+            classesContainer.innerHTML = `<p class="text-sm text-gray-500" data-lang-key="select_school_first">${translations[currentLang].select_school_first}</p>`;
             loadSubjects(); return;
         }
         const params = new URLSearchParams();
@@ -194,7 +311,9 @@ document.addEventListener('DOMContentLoaded', function () {
         const days = getSelectedValues(daysCard);
 
         if (school_ids.length === 0 || class_ids.length === 0 || test_numbers.length === 0) {
-            subjectsContainer.innerHTML = '<p class="text-sm text-gray-500">Выберите школу, класс и тест.</p>'; return;
+            const currentLang = localStorage.getItem('gat_monitoring_lang') || 'ru';
+            subjectsContainer.innerHTML = `<p class="text-sm text-gray-500" data-lang-key="select_all_first">${translations[currentLang].select_all_first}</p>`; 
+            return;
         }
         const params = new URLSearchParams();
         school_ids.forEach(id => params.append('school_ids[]', id));

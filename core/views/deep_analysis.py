@@ -1,4 +1,4 @@
-# D:\New_GAT\core\views\deep_analysis.py
+# D:\Project Archive\GAT\core\views\deep_analysis.py
 
 import json
 from collections import defaultdict
@@ -135,7 +135,7 @@ def deep_analysis_view(request):
                      all_subject_ids_in_results.update(int(sid) for sid in r.scores_by_subject.keys())
              accessible_subjects_qs = Subject.objects.filter(id__in=all_subject_ids_in_results)
 
-        # --- ✨ НОВАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ COMPARE_BY ✨ ---
+        # --- ✨ НОВАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ СУЩНОСТИ ДЛЯ СРАВНЕНИЯ (COMPARE_BY) ✨ ---
         if results_qs.exists() and accessible_subjects_qs.exists():
             
             # Считаем количество выбранных сущностей
@@ -147,13 +147,12 @@ def deep_analysis_view(request):
             compare_by = 'school' # По умолчанию
             
             # 1. Если выбрано несколько Тестов или Четвертей -> Сравниваем ТЕСТЫ (Динамика)
-            # Это решит вашу проблему: теперь при выборе GAT-1 и GAT-2 включится этот режим
             if tests_count > 1 or quarters_count > 1:
                 compare_by = 'test'
             # 2. Если выбрана 1 школа и несколько классов -> Сравниваем КЛАССЫ
             elif schools_selected_count == 1 and classes_selected_count > 1:
                 compare_by = 'class'
-            # 3. Иначе (много школ или ничего не выбрано) -> Сравниваем ШКОЛЫ
+            # 3. Иначе -> Сравниваем ШКОЛЫ
             else:
                 compare_by = 'school'
 
@@ -220,9 +219,8 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
         
         # --- ✨ ЛОГИКА ОПРЕДЕЛЕНИЯ СУЩНОСТИ ДЛЯ СРАВНЕНИЯ ✨ ---
         if compare_by == 'test':
-            # Сравниваем GAT-1 vs GAT-2 (или по четвертям)
-            # Группируем по уникальному сочетанию Теста и Четверти
-            entity_id = f"{gat_test.quarter.id}_{gat_test.test_number}" # ID для сортировки (Квартал потом Тест)
+            # Сравниваем GAT-1 vs GAT-2. Группируем по ID, чтобы правильно сортировалось
+            entity_id = f"{gat_test.quarter.id}_{gat_test.test_number}" 
             entity_name = f"GAT-{gat_test.test_number} ({gat_test.quarter.name})"
         elif compare_by == 'class':
             # Сравниваем Классы
@@ -256,7 +254,7 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
                     base_subject_name = subject_id_to_name_map.get(subject_id)
                     if not base_subject_name or not isinstance(answers, dict): continue
                     
-                    # Имя предмета включает параллель, чтобы не смешивать программы 5 и 10 классов
+                    # Имя предмета включает параллель, чтобы не смешивать программы разных классов
                     full_subject_name = f"{base_subject_name} ({parallel_name})"
                     dynamic_subjects.add(full_subject_name)
 
@@ -302,7 +300,7 @@ def _prepare_summary_charts(analysis_data, unique_subject_names):
     bar_datasets_summary = []
     bar_datasets_comparison = []
 
-    # 1. График общей успеваемости
+    # 1. График общей успеваемости (Среднее по всем)
     overall_subject_averages = []
     for name in unique_subject_names:
         all_correct, all_total = 0, 0
@@ -318,18 +316,19 @@ def _prepare_summary_charts(analysis_data, unique_subject_names):
         'label': 'Среднее по всем', 'data': overall_subject_averages,
     })
 
-    # 2. График сравнения
-    # ✨ ВАЖНО: Сортируем сущности по ключу (ID), чтобы GAT-1 шел перед GAT-2
-    # Ключи у нас вида "QuarterID_TestNumber" (например "1_1", "1_2"), что дает верную сортировку
+    # 2. График сравнения (Главная фишка)
+    # Сортируем сущности по ключу, чтобы GAT-1 был первым
     sorted_entity_ids = sorted(analysis_data.keys())
 
     for ent_id in sorted_entity_ids:
         entity_data = analysis_data[ent_id]
         entity_name = entity_data['name']
         data_points = [entity_data['subjects'].get(name, {}).get('overall_percentage', 0) for name in unique_subject_names]
+        
+        # Добавляем Dataset для каждой сущности (GAT-1, GAT-2 или Школа 1, Школа 2)
         bar_datasets_comparison.append({'label': entity_name, 'data': data_points})
     
-    # Линия среднего
+    # Линия среднего (для контекста)
     bar_datasets_comparison.append({
         'label': 'Среднее', 'data': overall_subject_averages,
         'type': 'line', 'borderDash': [5, 5], 'borderWidth': 2, 'pointRadius': 0,
@@ -412,7 +411,7 @@ def _prepare_heatmap_data_and_summary(analysis_data):
 
 
 def _prepare_trend_chart_data(results_qs, allowed_subject_ids_int, subject_id_to_name_map):
-    """ Готовит данные для графика динамики по четвертям (без изменений). """
+    """ Готовит данные для графика динамики по четвертям. """
     quarters_with_results = results_qs.values_list('gat_test__quarter', flat=True).distinct()
     if quarters_with_results.count() < 2: return None
 
