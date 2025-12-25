@@ -4,6 +4,7 @@ import pandas as pd
 import re
 import uuid
 import logging
+import openpyxl  # <--- ДОБАВЛЕНО: Нужен для чтения заголовков
 from collections import defaultdict
 from datetime import datetime
 
@@ -22,7 +23,6 @@ logger = logging.getLogger(__name__)
 # --- КОНФИГУРАЦИЯ И КОНСТАНТЫ ---
 # =============================================================================
 
-# Единый словарь для перевода заголовков Excel в наши внутренние ключи
 COLUMN_MAPPING = {
     # ID
     'code': 'student_id', 'id': 'student_id', 'student_id': 'student_id', 
@@ -184,8 +184,6 @@ def _get_or_create_student_smart(row_data, test_school_class, test_school, updat
     
     # Пытаемся найти более точный класс (например, тест для 10, а ученик в 10Б)
     if excel_class_name:
-        # Быстрый поиск класса (без кеша для простоты в этом месте, можно оптимизировать)
-        # Логика упрощена по сравнению с services.py original, так как основная загрузка идет через process_student_upload
         pass 
 
     try:
@@ -227,7 +225,6 @@ def process_student_upload(excel_file, school=None):
         classes_cache[norm_name] = c
 
     # Кеширование существующих студентов (Optimization!)
-    # student_id -> student_obj
     existing_students = {}
     if school:
         students_qs = Student.objects.filter(school_class__school=school)
@@ -238,7 +235,6 @@ def process_student_upload(excel_file, school=None):
         for index, row in df.iterrows():
             row_num = index + 2
             
-            # Валидация ID
             raw_id = row.get('student_id')
             if not raw_id:
                 stats['skipped'] += 1; continue
@@ -247,26 +243,21 @@ def process_student_upload(excel_file, school=None):
             if st_id.endswith('.0'): st_id = st_id[:-2]
             if st_id.isdigit() and len(st_id) < 6: st_id = st_id.zfill(6)
             
-            # Поиск класса
             class_name = row.get('class_name')
             target_class = _get_target_class(school, class_name, classes_cache)
             
-            # Данные студента
             ru_last = normalize_cyrillic(row.get('last_name_ru', '')).title()
             ru_first = normalize_cyrillic(row.get('first_name_ru', '')).title()
             
-            # --- Логика Обновления ---
             if st_id in existing_students:
                 student = existing_students[st_id]
                 changed = False
                 
-                # Обновляем имя
                 if ru_last and student.last_name_ru != ru_last:
                     student.last_name_ru = ru_last; changed = True
                 if ru_first and student.first_name_ru != ru_first:
                     student.first_name_ru = ru_first; changed = True
                 
-                # Обновляем класс (с защитой от понижения уровня, например 10А -> 10)
                 if target_class and student.school_class != target_class:
                     is_downgrade = (student.school_class.parent == target_class)
                     if not is_downgrade:
@@ -276,13 +267,11 @@ def process_student_upload(excel_file, school=None):
                     student.save()
                     stats['updated'] += 1
             
-            # --- Логика Создания ---
             else:
                 if not target_class:
                     stats['errors'].append(f"Строка {row_num}: Класс '{class_name}' не найден.")
                     continue
                 
-                # Фоллбэк для имен, если нет русских
                 if not ru_last: ru_last = row.get('last_name_en') or row.get('last_name_tj') or '-'
                 if not ru_first: ru_first = row.get('first_name_en') or row.get('first_name_tj') or '-'
 
@@ -311,13 +300,11 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
     """
     overrides_map = overrides_map or {}
     
-    # 1. Читаем файл (вне транзакции)
     full_path = default_storage.path(excel_file_path)
     df, error = _read_excel_to_df(full_path)
     if error: return False, {'errors': [error]}
 
-    # 2. Подготовка справочников (Mapping)
-    subjects_map = {} # {'мат': SubjectObj, 'физ': SubjectObj}
+    subjects_map = {} 
     for s in gat_test.subjects.all():
         name_key = normalize_cyrillic(s.name.strip().lower())
         subjects_map[name_key] = s
@@ -326,14 +313,10 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
 
     max_score = gat_test.questions.aggregate(total=models.Sum('points'))['total'] or 0
     
-    # 3. Кеширование (Pre-fetching)
-    # Находим все классы, которые могут быть затронуты (класс теста + его подклассы)
     target_classes = [gat_test.school_class]
     if gat_test.school_class.parent is None:
         target_classes.extend(gat_test.school_class.subclasses.all())
     
-    # Загружаем всех возможных студентов в память
-    # Ключ: student_id, Значение: Student object
     preloaded_students = {
         s.student_id: s 
         for s in Student.objects.filter(school_class__in=target_classes)
@@ -348,15 +331,12 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
         for index, row in df.iterrows():
             row_dict = row.to_dict()
             
-            # --- A. Находим студента (Быстро из кеша или Медленно через DB) ---
             raw_id = row_dict.get('student_id')
             student = None
             
-            # Попытка найти в кеше по ID
             if raw_id and str(raw_id) in preloaded_students:
                 student = preloaded_students[str(raw_id)]
             else:
-                # Если в кеше нет (новый или без ID), используем умный поиск
                 student, created, updated = _get_or_create_student_smart(
                     row_dict, gat_test.school_class, gat_test.school, update_names=False
                 )
@@ -367,7 +347,6 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
                 stats['errors'].append(f"Строка {index+2}: Ученик не найден и не создан.")
                 continue
 
-            # --- B. Обработка конфликтов имен (Overrides) ---
             excel_last = normalize_cyrillic(row_dict.get('last_name_ru', '')).title()
             excel_first = normalize_cyrillic(row_dict.get('first_name_ru', '')).title()
             
@@ -379,16 +358,13 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
                         student.save()
                         stats['updated_names'] += 1
 
-            # --- C. Подсчет баллов ---
             scores_by_subject = {} 
             total_score = 0
-            
-            # Временное хранилище ответов для этой строки: {subject_obj: {q_num: is_correct}}
             row_answers_data = defaultdict(dict)
 
             for col_name in df.columns:
                 if '_' not in col_name: continue
-                parts = col_name.rsplit('_', 1) # Разделяем "МАТ_1" -> "МАТ", "1"
+                parts = col_name.rsplit('_', 1)
                 if len(parts) != 2: continue
                 
                 subj_name_raw, q_num_str = parts
@@ -400,7 +376,6 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
                 subject = subjects_map[subj_name_norm]
                 q_num = int(q_num_str)
                 
-                # Парсинг значения ячейки (1, 0, +, -)
                 try:
                     val_str = str(row[col_name]).replace(',', '.')
                     val = float(val_str)
@@ -411,14 +386,10 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
                 if is_correct: 
                     total_score += 1
 
-                # Заполняем JSON
                 if str(subject.id) not in scores_by_subject: scores_by_subject[str(subject.id)] = {}
                 scores_by_subject[str(subject.id)][str(q_num)] = is_correct
-                
                 row_answers_data[subject][q_num] = is_correct
 
-            # --- D. Сохранение результата ---
-            # Используем update_or_create, так как это безопаснее для повторных загрузок
             student_result, _ = StudentResult.objects.update_or_create(
                 student=student,
                 gat_test=gat_test,
@@ -427,17 +398,8 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
             processed_result_ids.append(student_result.id)
             stats['total_unique_students'] += 1
 
-            # --- E. Подготовка детальных ответов (StudentAnswer) ---
-            # Для оптимизации мы не создаем вопросы каждый раз, предполагаем, что они есть.
-            # Если вопросов нет в БД, их лучше создать заранее один раз при создании Теста.
-            
-            # Здесь мы используем get_or_create для Question только если его нет,
-            # но в идеале нужно кэшировать и вопросы тоже.
-            
             for subject, answers in row_answers_data.items():
                 for q_num, is_correct in answers.items():
-                    # Пытаемся найти вопрос в базе (или создать)
-                    # TODO: Для супер-скорости это тоже можно вынести в кеш
                     question, _ = Question.objects.get_or_create(
                         gat_test=gat_test, subject=subject, question_number=q_num
                     )
@@ -448,20 +410,16 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
                         is_correct=is_correct
                     ))
 
-            # Статистика для отчета
             if max_score > 0:
                 percent = (total_score / max_score) * 100
                 batch_grades.append(calculate_grade_from_percentage(percent))
 
-    # --- F. Массовая запись ответов (Bulk Operations) ---
     if processed_result_ids:
-        # Удаляем старые ответы для этих результатов (чтобы не было дублей)
         StudentAnswer.objects.filter(result_id__in=processed_result_ids).delete()
     
     if student_answers_buffer:
         StudentAnswer.objects.bulk_create(student_answers_buffer, batch_size=2000)
 
-    # Чистка файла
     if default_storage.exists(excel_file_path):
         default_storage.delete(excel_file_path)
 
@@ -488,7 +446,6 @@ def analyze_student_results(excel_file):
     conflicts = []
     new_students_count = 0
 
-    # Оптимизация: загружаем всех студентов, чьи ID есть в файле
     file_ids = [str(x).strip() for x in df['student_id'].unique() if x]
     db_students = {s.student_id: s for s in Student.objects.filter(student_id__in=file_ids)}
 
@@ -520,3 +477,43 @@ def analyze_student_results(excel_file):
         'file_path': file_path,
         'total_rows': len(df)
     }
+
+# =============================================================================
+# --- НОВАЯ ФУНКЦИЯ ДЛЯ ВАЛИДАЦИИ ДАТЫ В EXCEL ---
+# =============================================================================
+
+def extract_test_date_from_excel(file_obj):
+    """
+    Пытается извлечь дату теста из заголовка Excel-файла (первые 10 строк).
+    Если дата не найдена — возвращает None.
+    """
+    try:
+        # data_only=True важен, чтобы читать вычисленные значения, а не формулы
+        wb = openpyxl.load_workbook(file_obj, data_only=True)
+        sheet = wb.active
+        
+        # Просматриваем первые 10 строк и 10 колонок
+        for row in sheet.iter_rows(min_row=1, max_row=10, max_col=10):
+            for cell in row:
+                value = cell.value
+                
+                # 1. Если Excel уже считает это датой
+                if isinstance(value, datetime):
+                    return value.date()
+                
+                # 2. Если это текст, пробуем найти дату регуляркой
+                if isinstance(value, str):
+                    # Ищем форматы: DD.MM.YYYY или DD/MM/YYYY или YYYY-MM-DD
+                    match = re.search(r'(\d{2}[./-]\d{2}[./-]\d{4})|(\d{4}-\d{2}-\d{2})', value)
+                    if match:
+                        date_str = match.group(0).replace('/', '.').replace('-', '.')
+                        # Пробуем разные форматы
+                        for fmt in ('%d.%m.%Y', '%Y.%m.%d'):
+                            try:
+                                return datetime.strptime(date_str, fmt).date()
+                            except ValueError:
+                                continue
+        return None
+    except Exception as e:
+        logger.error(f"Ошибка при извлечении даты из Excel: {e}")
+        return None
