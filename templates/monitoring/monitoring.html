@@ -12,6 +12,9 @@
     }
     .btn-icon.excel { @apply bg-green-50 text-green-700 hover:bg-green-100; }
     .btn-icon.pdf { @apply bg-red-50 text-red-700 hover:bg-red-100; }
+    
+    /* ✨ Скрываем ненужные имена */
+    .hidden { display: none !important; }
 
     @media print {
         body { background-color: white !important; }
@@ -122,7 +125,14 @@
                         {% for row in table_rows %}
                         <tr data-href="{% url 'core:student_progress' row.student.id %}" class="bg-slate-50 hover:bg-blue-100 cursor-pointer border-b border-slate-200">
                             <td class="table-cell text-center text-gray-500">{{ forloop.counter }}</td>
-                            <td class="table-cell font-medium text-gray-900">{{ row.student.full_name_ru }}</td>
+                            
+                            {# ✨ ИМЕНА НА 3 ЯЗЫКАХ (Переключаются JS) #}
+                            <td class="table-cell font-medium text-gray-900">
+                                <span class="student-name name-ru">{{ row.student.full_name_ru }}</span>
+                                <span class="student-name name-tj hidden">{{ row.student.full_name_tj|default:row.student.full_name_ru }}</span>
+                                <span class="student-name name-en hidden">{{ row.student.full_name_en|default:row.student.full_name_ru }}</span>
+                            </td>
+
                             <td class="table-cell text-center text-gray-700">{{ row.student.school_class.name }}</td>
                             <td class="table-cell text-center text-gray-700">{{ row.result_obj.gat_test.name }}</td>
                             {% for header in table_headers %}
@@ -231,7 +241,10 @@ const translations = {
 };
 
 function setLanguage(lang) {
+    // 1. Сохраняем выбор
     localStorage.setItem('gat_monitoring_lang', lang);
+    
+    // 2. Обновляем кнопки (стиль активной)
     ['ru', 'tj', 'en'].forEach(l => {
         const btn = document.getElementById(`btn-lang-${l}`);
         if(btn) {
@@ -244,6 +257,8 @@ function setLanguage(lang) {
             }
         }
     });
+
+    // 3. Переводим тексты интерфейса
     const t = translations[lang];
     document.querySelectorAll('[data-lang-key]').forEach(el => {
         const key = el.dataset.langKey;
@@ -251,6 +266,10 @@ function setLanguage(lang) {
             el.innerText = t[key];
         }
     });
+
+    // 4. ✨ НОВОЕ: Переключаем имена студентов
+    document.querySelectorAll('.student-name').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll(`.student-name.name-${lang}`).forEach(el => el.classList.remove('hidden'));
 }
 
 document.addEventListener('DOMContentLoaded', function () {
