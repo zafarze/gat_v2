@@ -23,14 +23,11 @@ def monitoring_view(request):
     context['title'] = 'Мониторинг'
 
     # --- 🚀 ОПТИМИЗАЦИЯ: ЗАПРЕТ НА ЗАГРУЗКУ БЕЗ ФИЛЬТРОВ ---
-    # Проверяем, нажал ли пользователь кнопку (есть ли параметры в URL)
-    # Если параметров нет (len(request.GET) == 0), мы НЕ показываем таблицу.
     if not request.GET:
-        context['table_rows'] = []   # Очищаем список студентов
-        context['has_results'] = False # Говорим шаблону, что результатов нет
-        context['is_filtered'] = False # Флаг "фильтры не применялись"
+        context['table_rows'] = []   
+        context['has_results'] = False 
+        context['is_filtered'] = False 
     else:
-        # Если параметры есть, оставляем всё как есть
         context['is_filtered'] = True
         context['has_results'] = bool(context.get('table_rows'))
     # -------------------------------------------------------
@@ -42,7 +39,7 @@ def monitoring_view(request):
     context['selected_class_ids_json'] = json.dumps(context['selected_class_ids'])
     context['selected_subject_ids_json'] = json.dumps(context['selected_subject_ids'])
 
-    # --- Группировка классов (без изменений) ---
+    # --- Группировка классов ---
     grouped_classes = defaultdict(list)
     if selected_school_ids_str:
         try:
@@ -70,11 +67,11 @@ def monitoring_view(request):
 
     return render(request, 'monitoring/monitoring.html', context)
 
-# --- (Функции экспорта export_monitoring_pdf и export_monitoring_excel оставь без изменений) ---
-# ... (копировать их сюда не нужно, они остаются старыми)
+
 @login_required
 def export_monitoring_pdf(request):
     """Экспортирует отчет по мониторингу в PDF."""
+    # Примечание: PDF генерацию тоже можно локализовать, но сейчас фокусируемся на Excel
     context = get_report_context(request.GET, request.user, mode='monitoring')
     context['title'] = 'Отчет по мониторингу'
     html_string = render_to_string('monitoring/monitoring_pdf.html', context)
@@ -85,39 +82,82 @@ def export_monitoring_pdf(request):
 
 @login_required
 def export_monitoring_excel(request):
-    """Экспортирует отчет по мониторингу в Excel."""
+    """Экспортирует отчет по мониторингу в Excel с учетом языка."""
     context = get_report_context(request.GET, request.user, mode='monitoring')
     table_headers = context.get('table_headers', [])
     table_rows = context.get('table_rows', [])
+    
+    # 1. Получаем язык из запроса (по умолчанию 'ru')
+    lang = request.GET.get('lang', 'ru')
+
+    # 2. Словарь переводов заголовков
+    translations = {
+        'ru': {
+            'no': "№", 'student': "ФИО Студента", 'class': "Класс", 
+            'test': "Тест", 'total': "Общий балл", 'from': "из"
+        },
+        'en': {
+            'no': "#", 'student': "Student Name", 'class': "Class", 
+            'test': "Test", 'total': "Total Score", 'from': "of"
+        },
+        'tj': {
+            'no': "№", 'student': "Ному насаб", 'class': "Синф", 
+            'test': "Тест", 'total': "Холи умумӣ", 'from': "аз"
+        }
+    }
+    # Выбираем текущий словарь, если язык не найден — берем ru
+    t = translations.get(lang, translations['ru'])
+
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="monitoring_report.xlsx"'
+    
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = 'Мониторинг'
-    header1 = ["№", "ФИО Студента", "Класс", "Тест"]
+    sheet.title = 'Monitoring' if lang == 'en' else 'Мониторинг'
+    
+    # 3. Используем переводы для заголовков
+    header1 = [t['no'], t['student'], t['class'], t['test']]
     for header_data in table_headers:
         header1.append(header_data['subject'].abbreviation or header_data['subject'].name)
-    header1.append("Общий балл")
+    header1.append(t['total'])
+    
     sheet.append(header1)
+    
     header2 = ["", "", "", ""]
     for header_data in table_headers:
         q_count = header_data.get('q_count', 0)
-        header2.append(f"(из {q_count})" if q_count > 0 else "")
+        header2.append(f"({t['from']} {q_count})" if q_count > 0 else "")
     header2.append("")
+    
     sheet.append(header2)
+    
     for col in range(1, 5):
         sheet.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
         sheet.cell(row=1, column=col).alignment = Alignment(vertical='center')
+    
     total_score_col = len(header1)
     sheet.merge_cells(start_row=1, start_column=total_score_col, end_row=2, end_column=total_score_col)
     sheet.cell(row=1, column=total_score_col).alignment = Alignment(vertical='center')
+    
+    # 4. Заполняем данными с учетом языка
     for i, row_data in enumerate(table_rows, 1):
+        student = row_data['student']
+        
+        # Выбираем имя в зависимости от языка
+        if lang == 'en':
+            student_name = student.full_name_en or student.full_name_ru
+        elif lang == 'tj':
+            student_name = student.full_name_tj or student.full_name_ru
+        else:
+            student_name = student.full_name_ru
+
         row = [
             i,
-            row_data['student'].full_name_ru,
-            str(row_data['student'].school_class),
+            student_name, # Используем выбранное имя
+            str(student.school_class),
             row_data['result_obj'].gat_test.name if row_data.get('result_obj') else "Total"
         ]
+        
         for header_data in table_headers:
             score_data = row_data.get('scores_by_subject', {}).get(header_data['subject'].id)
             if score_data and score_data.get('score') != '—':
@@ -125,8 +165,10 @@ def export_monitoring_excel(request):
             else:
                 cell_value = "—"
             row.append(cell_value)
+            
         row.append(row_data['total_score'])
         sheet.append(row)
+        
     for col_idx, column_cells in enumerate(sheet.columns, 1):
         max_length = 0
         column = get_column_letter(col_idx)
@@ -135,5 +177,6 @@ def export_monitoring_excel(request):
                 if len(str(cell.value)) > max_length: max_length = len(str(cell.value))
             except: pass
         sheet.column_dimensions[column].width = (max_length + 2)
+        
     workbook.save(response)
     return response

@@ -14,7 +14,7 @@
         .btn-icon.excel { @apply bg-green-50 text-green-700 hover:bg-green-100; }
         .btn-icon.pdf { @apply bg-red-50 text-red-700 hover:bg-red-100; }
         
-        /* ✨ ИСПРАВЛЕНИЕ: Переименовали .hidden в .lang-hidden, чтобы не ломать Sidebar */
+        /* ✨ ИСПРАВЛЕНИЕ 1: Переименовали .hidden в .lang-hidden, чтобы не ломать Sidebar */
         .lang-hidden { display: none !important; }
 
         @media print {
@@ -128,7 +128,7 @@
                         <tr data-href="{% url 'core:student_progress' row.student.id %}" class="bg-slate-50 hover:bg-blue-100 cursor-pointer border-b border-slate-200">
                             <td class="table-cell text-center text-gray-500">{{ forloop.counter }}</td>
                             
-                            {# ✨ ИМЕНА НА 3 ЯЗЫКАХ (Переключаются JS с использованием нового класса lang-hidden) #}
+                            {# ✨ ИСПРАВЛЕНИЕ 2: Используем класс lang-hidden в HTML #}
                             <td class="table-cell font-medium text-gray-900">
                                 <span class="student-name name-ru">{{ row.student.full_name_ru }}</span>
                                 <span class="student-name name-tj lang-hidden">{{ row.student.full_name_tj|default:row.student.full_name_ru }}</span>
@@ -289,9 +289,26 @@ function setLanguage(lang) {
         }
     });
 
-    // 4. ✨ ИСПРАВЛЕНИЕ: Переключаем имена студентов используя lang-hidden
+    // 4. Переключаем имена студентов (используя lang-hidden)
     document.querySelectorAll('.student-name').forEach(el => el.classList.add('lang-hidden'));
     document.querySelectorAll(`.student-name.name-${lang}`).forEach(el => el.classList.remove('lang-hidden'));
+
+    // 5. ✨ ИСПРАВЛЕНИЕ 3 (ДЛЯ EXCEL/PDF): Обновляем ссылки на экспорт
+    const excelBtn = document.querySelector('a[href*="export_monitoring_excel"]');
+    const pdfBtn = document.querySelector('a[href*="export_monitoring_pdf"]');
+    if (excelBtn) updateExportLink(excelBtn, lang);
+    if (pdfBtn) updateExportLink(pdfBtn, lang);
+}
+
+// ✨ ХЕЛПЕР: Функция для добавления параметра ?lang=... в URL
+function updateExportLink(linkElement, lang) {
+    try {
+        const url = new URL(linkElement.href, window.location.origin);
+        url.searchParams.set('lang', lang); // Добавляем или обновляем параметр lang
+        linkElement.href = url.toString();
+    } catch (e) {
+        console.error("Ошибка обновления ссылки экспорта:", e);
+    }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
