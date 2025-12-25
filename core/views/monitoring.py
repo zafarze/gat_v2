@@ -1,4 +1,4 @@
-# D:\Project Archive\GAT\core\views\monitoring.py
+# D:\New_GAT\core\views\monitoring.py
 
 import json
 from collections import defaultdict
@@ -18,17 +18,23 @@ from ..models import SchoolClass
 def monitoring_view(request):
     """Отображает страницу Мониторинга с новой панелью фильтров."""
     
-    # 1. Получаем данные через утилиту
+    # 1. Получаем контекст (фильтры и данные)
     context = get_report_context(request.GET, request.user, mode='monitoring')
     context['title'] = 'Мониторинг'
 
-    # 2. ✨ ЯВНО ОПРЕДЕЛЯЕМ СОСТОЯНИЕ ДЛЯ ШАБЛОНА ✨
-    # is_filtered: Истина, если пользователь нажал "Применить" (есть параметры в URL)
-    # has_results: Истина, если список строк таблицы не пуст
-    context['is_filtered'] = len(request.GET) > 0
-    context['has_results'] = bool(context.get('table_rows'))
+    # --- 🚀 ОПТИМИЗАЦИЯ: ЗАПРЕТ НА ЗАГРУЗКУ БЕЗ ФИЛЬТРОВ ---
+    # Проверяем, нажал ли пользователь кнопку (есть ли параметры в URL)
+    # Если параметров нет (len(request.GET) == 0), мы НЕ показываем таблицу.
+    if not request.GET:
+        context['table_rows'] = []   # Очищаем список студентов
+        context['has_results'] = False # Говорим шаблону, что результатов нет
+        context['is_filtered'] = False # Флаг "фильтры не применялись"
+    else:
+        # Если параметры есть, оставляем всё как есть
+        context['is_filtered'] = True
+        context['has_results'] = bool(context.get('table_rows'))
+    # -------------------------------------------------------
 
-    # 3. Собираем выбранные ID для JavaScript (Чипы)
     selected_school_ids_str = request.GET.getlist('schools')
     context['selected_class_ids'] = request.GET.getlist('school_classes')
     context['selected_subject_ids'] = request.GET.getlist('subjects')
@@ -36,7 +42,7 @@ def monitoring_view(request):
     context['selected_class_ids_json'] = json.dumps(context['selected_class_ids'])
     context['selected_subject_ids_json'] = json.dumps(context['selected_subject_ids'])
 
-    # 4. Группировка классов для фильтра (Ваша логика)
+    # --- Группировка классов (без изменений) ---
     grouped_classes = defaultdict(list)
     if selected_school_ids_str:
         try:
@@ -64,9 +70,11 @@ def monitoring_view(request):
 
     return render(request, 'monitoring/monitoring.html', context)
 
-# --- Остальные функции (export_pdf, export_excel) оставь как есть ---
+# --- (Функции экспорта export_monitoring_pdf и export_monitoring_excel оставь без изменений) ---
+# ... (копировать их сюда не нужно, они остаются старыми)
 @login_required
 def export_monitoring_pdf(request):
+    """Экспортирует отчет по мониторингу в PDF."""
     context = get_report_context(request.GET, request.user, mode='monitoring')
     context['title'] = 'Отчет по мониторингу'
     html_string = render_to_string('monitoring/monitoring_pdf.html', context)
@@ -77,6 +85,7 @@ def export_monitoring_pdf(request):
 
 @login_required
 def export_monitoring_excel(request):
+    """Экспортирует отчет по мониторингу в Excel."""
     context = get_report_context(request.GET, request.user, mode='monitoring')
     table_headers = context.get('table_headers', [])
     table_rows = context.get('table_rows', [])
@@ -85,28 +94,23 @@ def export_monitoring_excel(request):
     workbook = Workbook()
     sheet = workbook.active
     sheet.title = 'Мониторинг'
-    
     header1 = ["№", "ФИО Студента", "Класс", "Тест"]
     for header_data in table_headers:
         header1.append(header_data['subject'].abbreviation or header_data['subject'].name)
     header1.append("Общий балл")
     sheet.append(header1)
-
     header2 = ["", "", "", ""]
     for header_data in table_headers:
         q_count = header_data.get('q_count', 0)
         header2.append(f"(из {q_count})" if q_count > 0 else "")
     header2.append("")
     sheet.append(header2)
-
     for col in range(1, 5):
         sheet.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
         sheet.cell(row=1, column=col).alignment = Alignment(vertical='center')
-
     total_score_col = len(header1)
     sheet.merge_cells(start_row=1, start_column=total_score_col, end_row=2, end_column=total_score_col)
     sheet.cell(row=1, column=total_score_col).alignment = Alignment(vertical='center')
-
     for i, row_data in enumerate(table_rows, 1):
         row = [
             i,
@@ -123,7 +127,6 @@ def export_monitoring_excel(request):
             row.append(cell_value)
         row.append(row_data['total_score'])
         sheet.append(row)
-
     for col_idx, column_cells in enumerate(sheet.columns, 1):
         max_length = 0
         column = get_column_letter(col_idx)
@@ -132,6 +135,5 @@ def export_monitoring_excel(request):
                 if len(str(cell.value)) > max_length: max_length = len(str(cell.value))
             except: pass
         sheet.column_dimensions[column].width = (max_length + 2)
-
     workbook.save(response)
     return response
