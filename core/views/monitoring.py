@@ -65,15 +65,17 @@ def monitoring_view(request):
 
     context['grouped_classes'] = final_grouped_classes
 
-    return render(request, 'monitoring/monitoring.html', context)
+    return render(request, 'dashboard/monitoring.html', context)
 
 
 @login_required
 def export_monitoring_pdf(request):
     """Экспортирует отчет по мониторингу в PDF."""
-    # Примечание: PDF генерацию тоже можно локализовать, но сейчас фокусируемся на Excel
     context = get_report_context(request.GET, request.user, mode='monitoring')
     context['title'] = 'Отчет по мониторингу'
+    
+    # Можно добавить сюда ту же логику переводов, если нужно для PDF
+    
     html_string = render_to_string('monitoring/monitoring_pdf.html', context)
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="monitoring_report.pdf"'
@@ -89,7 +91,7 @@ def export_monitoring_excel(request):
     
     # 1. Получаем язык из запроса (по умолчанию 'ru')
     lang = request.GET.get('lang', 'ru')
-
+    
     # 2. Словарь переводов заголовков
     translations = {
         'ru': {
@@ -113,7 +115,7 @@ def export_monitoring_excel(request):
     
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = 'Monitoring' if lang == 'en' else 'Мониторинг'
+    sheet.title = 'Monitoring'
     
     # 3. Используем переводы для заголовков
     header1 = [t['no'], t['student'], t['class'], t['test']]
@@ -131,6 +133,7 @@ def export_monitoring_excel(request):
     
     sheet.append(header2)
     
+    # Объединение и стилизация заголовков
     for col in range(1, 5):
         sheet.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
         sheet.cell(row=1, column=col).alignment = Alignment(vertical='center')

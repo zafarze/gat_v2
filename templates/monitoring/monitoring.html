@@ -2,7 +2,7 @@
 {% load static custom_filters %}
 
 {% block head %}
-    {{ block.super }} {# <--- ВАЖНО: Это возвращает стили родителя (Sidebar, меню) #}
+    {{ block.super }}
     <link rel="stylesheet" href="{% static 'css/deep_analysis.css' %}">
     <style>
         .table-header {
@@ -14,7 +14,7 @@
         .btn-icon.excel { @apply bg-green-50 text-green-700 hover:bg-green-100; }
         .btn-icon.pdf { @apply bg-red-50 text-red-700 hover:bg-red-100; }
         
-        /* ✨ ИСПРАВЛЕНИЕ 1: Переименовали .hidden в .lang-hidden, чтобы не ломать Sidebar */
+        /* Скрываем элементы другого языка */
         .lang-hidden { display: none !important; }
 
         @media print {
@@ -79,9 +79,8 @@
         </form>
     </div>
 
-    {# --- ЛОГИКА ОТОБРАЖЕНИЯ РЕЗУЛЬТАТОВ --- #}
+    {# --- РЕЗУЛЬТАТЫ --- #}
     {% if has_results %}
-        {# 1. ЕСТЬ ДАННЫЕ -> ПОКАЗЫВАЕМ ТАБЛИЦУ #}
         <div class="mt-8">
             <div id="table-wrapper" class="bg-white shadow-md rounded-lg overflow-x-auto">
                 <div class="p-4 border-b flex justify-between items-center action-buttons">
@@ -93,14 +92,15 @@
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M19 8l-7 7-7-7"></path></svg>
                             <span data-lang-key="print">Печать</span>
                         </button>
-                        <a href="{% url 'core:export_monitoring_excel' %}?{{ request.GET.urlencode }}" class="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md shadow transition">
+                        {# ✨ ИСПРАВЛЕНИЕ: Кнопки теперь вызывают JS-функцию downloadReport #}
+                        <button onclick="downloadReport(event, 'excel')" class="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-md shadow transition cursor-pointer">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M16 16v4H8v-4M14 2H10v6H6l6 6 6-6h-4V2z"></path></svg>
                             Excel
-                        </a>
-                        <a href="{% url 'core:export_monitoring_pdf' %}?{{ request.GET.urlencode }}" class="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md shadow transition">
+                        </button>
+                        <button onclick="downloadReport(event, 'pdf')" class="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-md shadow transition cursor-pointer">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M17 9V7a2 2 0 00-2-2H9a2 2 0 00-2 2v2m12 4v6a2 2 0 01-2 2H7a2 2 0 01-2-2v-6m16-2H3"></path></svg>
                             PDF
-                        </a>
+                        </button>
                     </div>
                 </div>
                 <table class="min-w-full">
@@ -128,7 +128,6 @@
                         <tr data-href="{% url 'core:student_progress' row.student.id %}" class="bg-slate-50 hover:bg-blue-100 cursor-pointer border-b border-slate-200">
                             <td class="table-cell text-center text-gray-500">{{ forloop.counter }}</td>
                             
-                            {# ✨ ИСПРАВЛЕНИЕ 2: Используем класс lang-hidden в HTML #}
                             <td class="table-cell font-medium text-gray-900">
                                 <span class="student-name name-ru">{{ row.student.full_name_ru }}</span>
                                 <span class="student-name name-tj lang-hidden">{{ row.student.full_name_tj|default:row.student.full_name_ru }}</span>
@@ -157,30 +156,26 @@
         </div>
 
     {% elif is_filtered %}
-        {# 2. ФИЛЬТРЫ ВЫБРАНЫ, НО НИЧЕГО НЕ НАЙДЕНО -> ЖЕЛТОЕ СООБЩЕНИЕ #}
         <div class="mt-8">
             <div class="bg-yellow-50 border-l-4 border-yellow-400 p-6 rounded-2xl shadow-md flex items-start gap-4">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-600 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                 <div>
                     <h3 class="font-bold text-yellow-800">Данные не найдены</h3>
-                    <p class="text-yellow-700" data-lang-key="no_data">По вашему запросу ничего не найдено. Возможно, по выбранным критериям (Предмет/Класс/Тест) еще нет результатов.</p>
+                    <p class="text-yellow-700" data-lang-key="no_data">По вашему запросу ничего не найдено.</p>
                 </div>
             </div>
         </div>
-
     {% else %}
-        {# 3. ТОЛЬКО ЗАШЛИ (НЕТ ФИЛЬТРОВ) -> СЕРОЕ СООБЩЕНИЕ #}
         <div class="mt-8 flex justify-center items-center h-64 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
             <div class="text-center">
                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
                 </svg>
                 <h3 class="mt-2 text-sm font-medium text-gray-900" data-lang-key="select_filters_title">Выберите параметры</h3>
-                <p class="mt-1 text-sm text-gray-500" data-lang-key="select_filters_desc">Выберите школу, класс и тест, затем нажмите "Применить".</p>
+                <p class="mt-1 text-sm text-gray-500" data-lang-key="select_filters_desc">Выберите школу, класс и тест.</p>
             </div>
         </div>
     {% endif %}
-
 </div>
 {% endblock content %}
 
@@ -262,11 +257,34 @@ const translations = {
     }
 };
 
+// ✨ НОВАЯ ФУНКЦИЯ: Скачивание отчета с текущим языком
+function downloadReport(event, type) {
+    event.preventDefault(); // Останавливаем стандартный переход
+    
+    // 1. Узнаем текущий язык из localStorage
+    const lang = localStorage.getItem('gat_monitoring_lang') || 'ru';
+    
+    // 2. Выбираем базовый URL
+    let baseUrl = "";
+    if (type === 'excel') {
+        baseUrl = "{% url 'core:export_monitoring_excel' %}";
+    } else {
+        baseUrl = "{% url 'core:export_monitoring_pdf' %}";
+    }
+    
+    // 3. Берем текущие параметры фильтров из URL страницы
+    const params = new URLSearchParams(window.location.search);
+    
+    // 4. Добавляем язык
+    params.set('lang', lang);
+    
+    // 5. Скачиваем
+    window.location.href = `${baseUrl}?${params.toString()}`;
+}
+
 function setLanguage(lang) {
-    // 1. Сохраняем выбор
     localStorage.setItem('gat_monitoring_lang', lang);
     
-    // 2. Обновляем кнопки (стиль активной)
     ['ru', 'tj', 'en'].forEach(l => {
         const btn = document.getElementById(`btn-lang-${l}`);
         if(btn) {
@@ -280,7 +298,6 @@ function setLanguage(lang) {
         }
     });
 
-    // 3. Переводим тексты интерфейса
     const t = translations[lang];
     document.querySelectorAll('[data-lang-key]').forEach(el => {
         const key = el.dataset.langKey;
@@ -289,34 +306,15 @@ function setLanguage(lang) {
         }
     });
 
-    // 4. Переключаем имена студентов (используя lang-hidden)
     document.querySelectorAll('.student-name').forEach(el => el.classList.add('lang-hidden'));
     document.querySelectorAll(`.student-name.name-${lang}`).forEach(el => el.classList.remove('lang-hidden'));
-
-    // 5. ✨ ИСПРАВЛЕНИЕ 3 (ДЛЯ EXCEL/PDF): Обновляем ссылки на экспорт
-    const excelBtn = document.querySelector('a[href*="export_monitoring_excel"]');
-    const pdfBtn = document.querySelector('a[href*="export_monitoring_pdf"]');
-    if (excelBtn) updateExportLink(excelBtn, lang);
-    if (pdfBtn) updateExportLink(pdfBtn, lang);
-}
-
-// ✨ ХЕЛПЕР: Функция для добавления параметра ?lang=... в URL
-function updateExportLink(linkElement, lang) {
-    try {
-        const url = new URL(linkElement.href, window.location.origin);
-        url.searchParams.set('lang', lang); // Добавляем или обновляем параметр lang
-        linkElement.href = url.toString();
-    } catch (e) {
-        console.error("Ошибка обновления ссылки экспорта:", e);
-    }
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    // Восстанавливаем язык или ставим RU
     const savedLang = localStorage.getItem('gat_monitoring_lang') || 'ru';
     setLanguage(savedLang);
 
-    // --- СТАРЫЙ КОД ФИЛЬТРОВ ---
+    // --- ЛОГИКА ФИЛЬТРОВ ---
     const form = document.getElementById('monitoring-form');
     if (!form) return;
 
@@ -350,7 +348,7 @@ document.addEventListener('DOMContentLoaded', function () {
         fetch(`${classesApiUrl}?${params.toString()}`).then(r => r.text()).then(html => {
             classesContainer.innerHTML = html;
             loadSubjects();
-        }).catch(e => { console.error(e); classesContainer.innerHTML = '<p class="text-sm text-red-500">Ошибка.</p>'; loadSubjects(); });
+        }).catch(e => { console.error(e); });
     };
 
     const loadSubjects = () => {
