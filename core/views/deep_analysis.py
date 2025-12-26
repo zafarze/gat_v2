@@ -306,11 +306,14 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
 
 
 def _prepare_summary_charts(analysis_data, unique_subject_names):
-    """ Готовит данные для графика общей успеваемости и графика сравнения по предметам. """
+    """ 
+    Готовит данные для графика.
+    ОБНОВЛЕНИЕ: Теперь группируем по ШКОЛАМ (ось X), а предметы - это столбики.
+    """
     bar_datasets_summary = []
     bar_datasets_comparison = []
 
-    # 1. График общей успеваемости (Среднее по всем)
+    # 1. График общей успеваемости (остается без изменений - среднее по предметам)
     overall_subject_averages = []
     for name in unique_subject_names:
         all_correct, all_total = 0, 0
@@ -326,27 +329,30 @@ def _prepare_summary_charts(analysis_data, unique_subject_names):
         'label': 'Среднее по всем', 'data': overall_subject_averages,
     })
 
-    # 2. График сравнения (Главная фишка)
-    # Сортируем сущности по ключу, чтобы порядок был логичным
+    # 2. График сравнения (ТРАНСПОНИРОВАННЫЙ)
+    # Ось X = Названия Сущностей (Школ/Тестов)
     sorted_entity_ids = sorted(analysis_data.keys())
+    comparison_labels = [analysis_data[eid]['name'] for eid in sorted_entity_ids]
 
-    for ent_id in sorted_entity_ids:
-        entity_data = analysis_data[ent_id]
-        entity_name = entity_data['name']
-        data_points = [entity_data['subjects'].get(name, {}).get('overall_percentage', 0) for name in unique_subject_names]
+    # Создаем Dataset для КАЖДОГО ПРЕДМЕТА
+    for subject_name in unique_subject_names:
+        data_points = []
+        for eid in sorted_entity_ids:
+            # Берем оценку по этому предмету для текущей школы
+            score = analysis_data[eid]['subjects'].get(subject_name, {}).get('overall_percentage', 0)
+            data_points.append(score)
         
-        # Добавляем Dataset для каждой сущности
-        bar_datasets_comparison.append({'label': entity_name, 'data': data_points})
-    
-    # Линия среднего (для контекста)
-    bar_datasets_comparison.append({
-        'label': 'Среднее', 'data': overall_subject_averages,
-        'type': 'line', 'borderDash': [5, 5], 'borderWidth': 2, 'pointRadius': 0,
-        'datalabels': {'display': False}
-    })
+        bar_datasets_comparison.append({
+            'label': subject_name,   # Теперь в легенде будет Предмет
+            'data': data_points      # Столбики этого предмета для каждой школы
+        })
+
+    # ПРИМЕЧАНИЕ: Линию общего среднего ("Среднее") мы убираем, 
+    # так как сравнивать разные предметы с одной средней линией на этом графике визуально некорректно.
 
     summary_chart = {'labels': unique_subject_names, 'datasets': bar_datasets_summary}
-    comparison_chart = {'labels': unique_subject_names, 'datasets': bar_datasets_comparison}
+    # Важно: здесь labels теперь comparison_labels (названия школ)
+    comparison_chart = {'labels': comparison_labels, 'datasets': bar_datasets_comparison}
     
     return summary_chart, comparison_chart
 
