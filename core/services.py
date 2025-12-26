@@ -421,10 +421,6 @@ def analyze_student_upload(file_path, school):
 # =============================================================================
 
 def process_student_results_upload(gat_test, file_path, overrides_map=None):
-    """
-    Читает Excel, ОБНОВЛЯЕТ классы учеников, ОБНОВЛЯЕТ имена (если разрешено)
-    и СОХРАНЯЕТ оценки.
-    """
     full_path = default_storage.path(file_path)
     df, error = _read_excel_to_df(full_path)
     
@@ -442,23 +438,23 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
             
     existing_classes = {c.name.upper(): c for c in SchoolClass.objects.filter(school=school)}
     
+    # Карта предметов
     subjects_map = {}
     for s in Subject.objects.all():
-        if s.abbreviation: 
-            subjects_map[s.abbreviation.upper()] = s
-        
-        # Нормализованное имя (МАТЕМАТИКА)
+        if s.abbreviation: subjects_map[s.abbreviation.upper()] = s
         norm_name = normalize_cyrillic(s.name).upper()
         subjects_map[norm_name] = s 
-        # Первые 3 буквы (МАТ)
         subjects_map[norm_name[:3]] = s
-        # Оригинальное английское имя (ALGEBRA)
         subjects_map[s.name.upper().strip()] = s
 
     allowed_name_updates = overrides_map.get('update_names_list', []) if overrides_map else []
     allowed_class_transfers = overrides_map.get('update_class_ids', []) if overrides_map else []
 
     processed_ids = set()
+    
+    # === НОВОЕ: Сюда будем собирать все предметы, найденные в файле ===
+    found_subjects = set()
+    # ==================================================================
 
     with transaction.atomic():
         for index, row in df.iterrows():
@@ -507,7 +503,7 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
                     }
                 )
 
-                # --- Г. Обновление данных ---
+                # --- Г. Обновление ---
                 updated = False
                 if excel_last and excel_first:
                     should_update_name = created or (st_id in allowed_name_updates)
@@ -524,24 +520,26 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
                 
                 if updated: student.save()
 
-                # --- Д. Парсинг Оценок (ИСПРАВЛЕНО) ---
+                # --- Д. Парсинг Оценок ---
                 scores_by_subject = defaultdict(dict)
                 total_score = 0
                 for col in df.columns:
-                    # Разделяем по ПОСЛЕДНЕМУ подчеркиванию (rsplit), чтобы поддерживать имена типа ALIFBOI_NIYOGON_1
                     parts = col.rsplit('_', 1)
                     
                     if len(parts) == 2 and parts[1].isdigit():
-                        subj_name_raw = parts[0].upper() # ALGEBRA
-                        q_num = parts[1] # 1
+                        subj_name_raw = parts[0].upper()
+                        q_num = parts[1]
                         
-                        # Пробуем найти предмет
                         normalized_key = normalize_cyrillic(subj_name_raw)
                         subject = subjects_map.get(normalized_key)
                         if not subject:
                              subject = subjects_map.get(subj_name_raw)
                         
                         if subject:
+                            # === НОВОЕ: Запоминаем, что этот предмет есть в тесте ===
+                            found_subjects.add(subject)
+                            # ========================================================
+
                             val = str(row[col]).strip()
                             is_correct = val in ['1', '1.0', '+', 'True', 'TRUE']
                             if is_correct or val in ['0', '0.0', '-', 'False', 'FALSE']:
@@ -558,5 +556,10 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
 
             except Exception as e:
                 report['errors'].append(f"Строка {index + 2}: {str(e)}")
+    
+    # === НОВОЕ: Добавляем все найденные предметы в настройки теста ===
+    if found_subjects:
+        gat_test.subjects.add(*found_subjects)
+    # =================================================================
 
     return True, report
