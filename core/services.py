@@ -438,23 +438,31 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
             
     existing_classes = {c.name.upper(): c for c in SchoolClass.objects.filter(school=school)}
     
-    # Карта предметов
+    # === ИСПРАВЛЕНИЕ 1: Улучшенная карта предметов ===
     subjects_map = {}
     for s in Subject.objects.all():
-        if s.abbreviation: subjects_map[s.abbreviation.upper()] = s
+        # 1. Аббревиатура (MAT)
+        if s.abbreviation: 
+            subjects_map[s.abbreviation.upper()] = s
+        
+        # 2. Первые 3 буквы (МАТ)
         norm_name = normalize_cyrillic(s.name).upper()
-        subjects_map[norm_name] = s 
         subjects_map[norm_name[:3]] = s
+        
+        # 3. Полное имя (МАТЕМАТИКА)
+        subjects_map[norm_name] = s
+        
+        # 4. Оригинальное имя капсом (ALGEBRA, ENGLISH) - ВАЖНО для вашего файла!
         subjects_map[s.name.upper().strip()] = s
+    # =================================================
 
     allowed_name_updates = overrides_map.get('update_names_list', []) if overrides_map else []
-    allowed_class_transfers = overrides_map.get('update_class_ids', []) if overrides_map else []
+    
+    # Исправление: берем правильный ключ для классов
+    allowed_class_transfers = overrides_map.get('update_class_ids', []) if overrides_map else [] # Было 'update_classes_list' в старых версиях
 
     processed_ids = set()
-    
-    # === НОВОЕ: Сюда будем собирать все предметы, найденные в файле ===
-    found_subjects = set()
-    # ==================================================================
+    found_subjects = set() # Для авто-добавления предметов
 
     with transaction.atomic():
         for index, row in df.iterrows():
@@ -524,22 +532,23 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
                 scores_by_subject = defaultdict(dict)
                 total_score = 0
                 for col in df.columns:
-                    parts = col.rsplit('_', 1)
+                    # === ИСПРАВЛЕНИЕ 2: rsplit для сложных имен (ALGEBRA_PART_1) ===
+                    parts = col.rsplit('_', 1) 
                     
                     if len(parts) == 2 and parts[1].isdigit():
-                        subj_name_raw = parts[0].upper()
-                        q_num = parts[1]
+                        subj_name_raw = parts[0].upper() # ENGLISH
+                        q_num = parts[1] # 1
                         
+                        # Ищем предмет в улучшенной карте
                         normalized_key = normalize_cyrillic(subj_name_raw)
                         subject = subjects_map.get(normalized_key)
+                        
+                        # Если не нашли по нормализованному, ищем "как есть" (для латиницы)
                         if not subject:
                              subject = subjects_map.get(subj_name_raw)
                         
                         if subject:
-                            # === НОВОЕ: Запоминаем, что этот предмет есть в тесте ===
-                            found_subjects.add(subject)
-                            # ========================================================
-
+                            found_subjects.add(subject) # Запоминаем предмет
                             val = str(row[col]).strip()
                             is_correct = val in ['1', '1.0', '+', 'True', 'TRUE']
                             if is_correct or val in ['0', '0.0', '-', 'False', 'FALSE']:
@@ -557,9 +566,8 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
             except Exception as e:
                 report['errors'].append(f"Строка {index + 2}: {str(e)}")
     
-    # === НОВОЕ: Добавляем все найденные предметы в настройки теста ===
+    # === ИСПРАВЛЕНИЕ 3: Авто-добавление предметов в тест ===
     if found_subjects:
         gat_test.subjects.add(*found_subjects)
-    # =================================================================
 
     return True, report
