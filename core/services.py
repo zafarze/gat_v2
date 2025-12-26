@@ -75,20 +75,28 @@ def _read_excel_to_df(file_path_or_obj):
     Универсальное чтение Excel в DataFrame с нормализацией заголовков.
     """
     try:
-        # Пытаемся читать через openpyxl (для .xlsx)
+        # ДОБАВЛЕНО: engine='openpyxl'
         df = pd.read_excel(file_path_or_obj, dtype=str, engine='openpyxl')
         
-        # ... (код нормализации колонок остается без изменений) ...
-        df.columns = [normalize_header(col) for col in df.columns]
-        df.rename(columns=COLUMN_MAPPING, inplace=True)
+        # Улучшенная обработка колонок:
+        new_cols = []
+        for col in df.columns:
+            norm_col = normalize_header(col)
+            # Если это стандартная колонка (ID, Имя) - нормализуем
+            if norm_col in COLUMN_MAPPING:
+                new_cols.append(COLUMN_MAPPING[norm_col])
+            else:
+                # Если это предмет (ALGEBRA_1) - оставляем как есть, только убираем пробелы
+                new_cols.append(str(col).strip())
+        
+        df.columns = new_cols
+        
+        # Убираем дубликаты и очищаем пустые значения
         df = df.loc[:, ~df.columns.duplicated()]
         df = df.fillna('').replace(['nan', 'None', 'NULL'], '')
         return df, None
-
     except Exception as e:
-        # === ДОБАВЛЕНО ДЛЯ ОТЛАДКИ ===
-        print(f"\n!!! ОШИБКА ЧТЕНИЯ EXCEL: {e} !!!\n") 
-        # =============================
+        logger.error(f"Error reading excel: {e}")
         return None, f"Ошибка чтения Excel-файла: {e}"
 
 def _get_target_class(school, class_name_raw, classes_cache):
@@ -436,12 +444,19 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
     
     subjects_map = {}
     for s in Subject.objects.all():
-        if s.abbreviation: subjects_map[s.abbreviation.upper()] = s
-        subjects_map[normalize_cyrillic(s.name).upper()[:3]] = s
+        if s.abbreviation: 
+            subjects_map[s.abbreviation.upper()] = s
+        
+        # Нормализованное имя (МАТЕМАТИКА)
+        norm_name = normalize_cyrillic(s.name).upper()
+        subjects_map[norm_name] = s 
+        # Первые 3 буквы (МАТ)
+        subjects_map[norm_name[:3]] = s
+        # Оригинальное английское имя (ALGEBRA)
+        subjects_map[s.name.upper().strip()] = s
 
-    allowed_name_updates = []
-    if overrides_map and 'update_names_list' in overrides_map:
-        allowed_name_updates = overrides_map['update_names_list']
+    allowed_name_updates = overrides_map.get('update_names_list', []) if overrides_map else []
+    allowed_class_transfers = overrides_map.get('update_class_ids', []) if overrides_map else []
 
     processed_ids = set()
 
@@ -460,12 +475,11 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
                 excel_last = normalize_cyrillic(row.get('last_name_ru', '')).title()
                 excel_first = normalize_cyrillic(row.get('first_name_ru', '')).title()
 
-                # --- Б. УМНЫЙ ПОИСК КЛАССА ---
+                # --- Б. Класс ---
                 target_class = None
                 if excel_class_name:
                     if len(excel_class_name) == 1 and test_grade_prefix:
-                        full_class_name = test_grade_prefix + excel_class_name
-                        cls_key = full_class_name.upper()
+                        cls_key = (test_grade_prefix + excel_class_name).upper()
                     else:
                         cls_key = excel_class_name.upper()
 
@@ -479,7 +493,6 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
                             parent_cls = SchoolClass.objects.filter(school=school, name=par_name, parent__isnull=True).first()
                             if not parent_cls:
                                 parent_cls = SchoolClass.objects.create(school=school, name=par_name)
-                        
                         target_class = SchoolClass.objects.create(school=school, name=cls_key, parent=parent_cls)
                         existing_classes[cls_key] = target_class
 
@@ -494,43 +507,40 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
                     }
                 )
 
-                # --- Г. Обновление (Только если выбрано) ---
+                # --- Г. Обновление данных ---
                 updated = False
-                
-                # 1. Список ID для имен и классов
-                allowed_name_updates = overrides_map.get('update_names_list', []) if overrides_map else []
-                # НОВОЕ: Получаем список разрешенных переводов
-                allowed_class_transfers = overrides_map.get('update_classes_list', []) if overrides_map else []
-                
                 if excel_last and excel_first:
-                    # Обновляем если: (Новый ученик) ИЛИ (Есть галочка "Обновить имя")
                     should_update_name = created or (st_id in allowed_name_updates)
-                    
                     if should_update_name:
                         if student.last_name_ru != excel_last:
                             student.last_name_ru = excel_last; updated = True
                         if student.first_name_ru != excel_first:
                             student.first_name_ru = excel_first; updated = True
                 
-                # 3. КЛАСС (ИЗМЕНЕНО)
                 if target_class and student.school_class != target_class:
-                    # Обновляем если: (Новый ученик) ИЛИ (Есть галочка "Перевести")
                     should_transfer = created or (st_id in allowed_class_transfers)
-                    
                     if should_transfer:
                         student.school_class = target_class; updated = True
                 
                 if updated: student.save()
 
-                # --- Д. Парсинг Оценок ---
+                # --- Д. Парсинг Оценок (ИСПРАВЛЕНО) ---
                 scores_by_subject = defaultdict(dict)
                 total_score = 0
                 for col in df.columns:
-                    parts = col.split('_')
+                    # Разделяем по ПОСЛЕДНЕМУ подчеркиванию (rsplit), чтобы поддерживать имена типа ALIFBOI_NIYOGON_1
+                    parts = col.rsplit('_', 1)
+                    
                     if len(parts) == 2 and parts[1].isdigit():
-                        subj_abbr = parts[0].upper()
-                        q_num = parts[1]
-                        subject = subjects_map.get(subj_abbr)
+                        subj_name_raw = parts[0].upper() # ALGEBRA
+                        q_num = parts[1] # 1
+                        
+                        # Пробуем найти предмет
+                        normalized_key = normalize_cyrillic(subj_name_raw)
+                        subject = subjects_map.get(normalized_key)
+                        if not subject:
+                             subject = subjects_map.get(subj_name_raw)
+                        
                         if subject:
                             val = str(row[col]).strip()
                             is_correct = val in ['1', '1.0', '+', 'True', 'TRUE']
