@@ -1,13 +1,15 @@
-# D:\New_GAT\core\urls.py (ФИНАЛЬНАЯ ВЕРСИЯ)
+# D:\Project Archive\GAT\core\urls.py (ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ)
 
 from django.urls import path
-from .views import reports
+from django.shortcuts import render
+
 # --- Импорты из 'accounts' ---
 from accounts import views as account_views
+
+# --- Импорты View-функций AI (ВАЖНО) ---
 from core.views import ai_chat_page, ai_ask_api
-from django.shortcuts import render
+
 # --- Импорты из приложения 'core' ---
-# Импортируем модули с view-функциями
 from core.views import (
     api,
     dashboard,
@@ -21,7 +23,8 @@ from core.views import (
     student_exams,
     students
 )
-# Импортируем классы и функции из crud.py
+
+# --- Импорты классов CRUD ---
 from core.views.crud import (
     AcademicYearListView, AcademicYearCreateView, AcademicYearUpdateView, AcademicYearDeleteView,
     QuarterListView, QuarterCreateView, QuarterUpdateView, QuarterDeleteView,
@@ -29,7 +32,6 @@ from core.views.crud import (
     SchoolClassListView, SchoolClassCreateView, SchoolClassUpdateView, SchoolClassDeleteView,
     SubjectListView, SubjectCreateView, SubjectUpdateView, SubjectDeleteView,
     GatTestCreateView, GatTestUpdateView, GatTestDeleteView, gat_test_list_view, gat_test_delete_results_view,
-    # Добавляем новую функцию сюда:
     gat_test_duplicate_view, 
     TeacherNoteCreateView, TeacherNoteDeleteView,
     management_dashboard_view,
@@ -193,8 +195,11 @@ urlpatterns = [
     path('student/exams/<int:result_id>/review/', student_exams.exam_review_view, name='exam_review'),
     path('dashboard/gat-tests/<int:pk>/duplicate/', gat_test_duplicate_view, name='gat_test_duplicate'),
     path('dashboard/gat-tests/school/<int:school_pk>/duplicate-batch/', gat_test_duplicate_school_view, name='gat_test_duplicate_school'),
-    path('ai-chat/', ai_chat_page, name='ai_chat_page'),
-    path('api/ai-chat/ask/', ai_ask_api, name='ai_ask_api'),
+    
+    # 🔥 AI CHAT (ИСПРАВЛЕНО) 🔥
+    path('ai-chat/', ai_chat_page, name='ai_chat'),
+    path('api/ai-ask/', ai_ask_api, name='ai_ask_api'),
+
     # Простой тестовый путь
     path('test-simple/', lambda request: render(request, 'test_simple.html'), name='test_simple'),
 ]
