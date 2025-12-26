@@ -1,306 +1,253 @@
 {% extends 'base.html' %}
 {% load static %}
 
-{% block title %}Главная - Панель управления{% endblock %}
+{% block title %}Панель управления | Andarz{% endblock %}
 
 {% block content %}
-    <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-        <h1 class="text-3xl font-bold text-gray-800">Панель управления</h1>
-        {# --- БЛОК С ФИЛЬТРАМИ ПЕРИОДОВ --- #}
-        <div class="flex items-center bg-white rounded-lg shadow-sm p-1 space-x-1">
-            <a href="{% url 'core:dashboard' %}?period=quarter" class="px-4 py-2 text-sm font-medium rounded-md transition-colors {% if selected_period == 'quarter' %}bg-indigo-600 text-white shadow{% else %}text-gray-600 hover:bg-gray-100{% endif %}">Эта четверть</a>
-            <a href="{% url 'core:dashboard' %}?period=year" class="px-4 py-2 text-sm font-medium rounded-md transition-colors {% if selected_period == 'year' %}bg-indigo-600 text-white shadow{% else %}text-gray-600 hover:bg-gray-100{% endif %}">Этот год</a>
-            <a href="{% url 'core:dashboard' %}?period=all" class="px-4 py-2 text-sm font-medium rounded-md transition-colors {% if selected_period == 'all' %}bg-indigo-600 text-white shadow{% else %}text-gray-600 hover:bg-gray-100{% endif %}">Все время</a>
-        </div>
-    </div>
+<div class="max-w-[1920px] mx-auto space-y-6 pb-12">
 
-    {# --- НАЧАЛО НОВОГО БЛОКА ОПОВЕЩЕНИЯ --- #}
-    <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded-md shadow-sm mb-6" role="alert">
-      <div class="flex items-center">
-        <div class="py-1">
-          <svg class="fill-current h-6 w-6 text-yellow-500 mr-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M2.93 17.07A10 10 0 1 1 17.07 2.93 10 10 0 0 1 2.93 17.07zm12.73-1.41A8 8 0 1 0 4.34 4.34a8 8 0 0 0 11.32 11.32zM9 11V9h2v6H9v-4zm0-6h2v2H9V5z"/></svg>
-        </div>
+    {# --- 1. ЗАГОЛОВОК И ФИЛЬТРЫ --- #}
+    <div class="flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
         <div>
-          <p class="font-bold">Внимание: Бета-версия!</p>
-          <p class="text-sm">Этот портал находится в стадии активной разработки. Если вы обнаружите ошибки или у вас есть предложения по улучшению, пожалуйста, сообщите мне в Telegram:
-            <a href="https://t.me/+992918202223" target="_blank" class="font-medium underline hover:text-yellow-800">
-              +992 918 20 22 23
-            </a>.
-            Спасибо за ваше понимание и помощь! 🙏
-          </p>
+            <h1 class="text-2xl font-extrabold text-gray-900 tracking-tight">Обзор успеваемости</h1>
+            <p class="text-gray-500 text-sm mt-0.5">Ключевые показатели образовательного процесса</p>
         </div>
-      </div>
-    </div>
-    {# --- КОНЕЦ НОВОГО БЛОКА ОПОВЕЩЕНИЯ --- #}
-
-    {# --- НАЧАЛО БЛОКА С КАРТОЧКАМИ KPI --- #}
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
-
-        {# --- Карточка Школы --- #}
-        {# ✨ WRAPPER: Оборачиваем в ссылку #}
-        <a href="{% url 'core:school_list' %}" class="block bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500">Всего школ</p>
-                    <p class="text-3xl font-bold text-gray-800">{{ school_count }}</p>
-                </div>
-                <div class="bg-blue-100 rounded-full p-3">
-                    <svg class="h-6 w-6 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>
-                </div>
-            </div>
-        </a> {# ✨ END WRAPPER #}
-
-        {# --- Карточка Студенты --- #}
-        {# ✨ WRAPPER: Оборачиваем в ссылку #}
-        <a href="{% url 'core:student_school_list' %}" class="block bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500">Всего студентов</p>
-                    <p class="text-3xl font-bold text-gray-800">{{ student_count }}</p>
-                </div>
-                <div class="bg-purple-100 rounded-full p-3">
-                    <svg class="h-6 w-6 text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
-                </div>
-            </div>
-        </a> {# ✨ END WRAPPER #}
-
-        {# --- Карточка Предметы --- #}
-        {# ✨ WRAPPER: Оборачиваем в ссылку #}
-        <a href="{% url 'core:subject_list' %}" class="block bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500">Всего предметов</p>
-                    <p class="text-3xl font-bold text-gray-800">{{ subject_count }}</p>
-                </div>
-                <div class="bg-green-100 rounded-full p-3">
-                    <svg class="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
-                </div>
-            </div>
-        </a> {# ✨ END WRAPPER #}
-
-        {# --- Карточка Тесты --- #}
-        {# ✨ WRAPPER: Оборачиваем в ссылку #}
-        <a href="{% url 'core:gat_test_list' %}" class="block bg-white p-5 rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200">
-            <div class="flex items-center justify-between">
-                <div>
-                    <p class="text-sm font-medium text-gray-500">Проведено тестов</p>
-                    <p class="text-3xl font-bold text-gray-800">{{ test_count }}</p>
-                </div>
-                <div class="bg-yellow-100 rounded-full p-3">
-                    <svg class="h-6 w-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
-                </div>
-            </div>
-        </a> {# ✨ END WRAPPER #}
-
+        
+        <div class="bg-gray-100 p-1 rounded-xl flex shadow-inner">
+            {% with p=selected_period %}
+            <a href="?period=quarter" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200 {% if p == 'quarter' %}bg-white text-indigo-600 shadow-sm ring-1 ring-black/5{% else %}text-gray-500 hover:text-gray-700 hover:bg-gray-200/50{% endif %}">Четверть</a>
+            <a href="?period=year" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200 {% if p == 'year' %}bg-white text-indigo-600 shadow-sm ring-1 ring-black/5{% else %}text-gray-500 hover:text-gray-700 hover:bg-gray-200/50{% endif %}">Год</a>
+            <a href="?period=all" class="px-5 py-2 text-sm font-semibold rounded-lg transition-all duration-200 {% if p == 'all' %}bg-white text-indigo-600 shadow-sm ring-1 ring-black/5{% else %}text-gray-500 hover:text-gray-700 hover:bg-gray-200/50{% endif %}">Всё время</a>
+            {% endwith %}
+        </div>
     </div>
 
+    {# --- 2. KPI КАРТОЧКИ --- #}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        <a href="{% url 'core:school_list' %}" class="group bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+            <div class="flex justify-between items-start">
+                <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-indigo-600">Школы</p><h3 class="text-3xl font-black text-gray-900 mt-2">{{ school_count }}</h3></div>
+                <div class="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center group-hover:bg-indigo-600 group-hover:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/></svg></div>
+            </div>
+        </a>
+        <a href="{% url 'core:student_school_list' %}" class="group bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+            <div class="flex justify-between items-start">
+                <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-purple-600">Студенты</p><h3 class="text-3xl font-black text-gray-900 mt-2">{{ student_count }}</h3></div>
+                <div class="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center group-hover:bg-purple-600 group-hover:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg></div>
+            </div>
+        </a>
+        <a href="{% url 'core:subject_list' %}" class="group bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+            <div class="flex justify-between items-start">
+                <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-emerald-600">Предметы</p><h3 class="text-3xl font-black text-gray-900 mt-2">{{ subject_count }}</h3></div>
+                <div class="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:bg-emerald-600 group-hover:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.246 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg></div>
+            </div>
+        </a>
+        <a href="{% url 'core:gat_test_list' %}" class="group bg-white p-5 rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-300">
+            <div class="flex justify-between items-start">
+                <div><p class="text-xs font-bold text-gray-400 uppercase tracking-wider group-hover:text-blue-600">Тесты</p><h3 class="text-3xl font-black text-gray-900 mt-2">{{ test_count }}</h3></div>
+                <div class="w-12 h-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center group-hover:bg-blue-600 group-hover:text-white transition-colors"><svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg></div>
+            </div>
+        </a>
+    </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {# --- ЛЕВАЯ КОЛОНКА С ГРАФИКАМИ --- #}
-        <div class="lg:col-span-2 space-y-8">
+    {# --- 3. СРЕДНИЙ РЯД (Только Рейтинг и Пончик) --- #}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {# Рейтинг Школ/Классов #}
+        <div class="lg:col-span-2 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-bold text-gray-800">
+                    {% if user.is_staff or user.profile.role == 'EXPERT' %}Топ школ{% else %}Рейтинг классов{% endif %}
+                </h2>
+                <span class="text-xs font-medium px-2 py-1 bg-gray-100 rounded text-gray-500">Топ 10</span>
+            </div>
+            <div class="relative h-80 w-full">
+                <canvas id="schoolChart"></canvas>
+            </div>
+        </div>
 
-            <div class="grid grid-cols-1 xl:grid-cols-5 gap-8">
-                <div class="xl:col-span-2 bg-white p-6 rounded-lg shadow-md">
-                    <h2 class="text-xl font-semibold text-gray-700 mb-4">Распределение успеваемости</h2>
-                    <div class="relative h-64">
-                        <canvas id="performanceDistributionChart"></canvas>
+        {# Пончик распределения #}
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+            <h2 class="text-lg font-bold text-gray-800 mb-2">Качество знаний</h2>
+            <div class="relative flex-grow flex items-center justify-center min-h-[250px]">
+                <canvas id="performanceDistributionChart"></canvas>
+            </div>
+        </div>
+    </div>
+
+    {# --- 4. НИЖНИЙ РЯД (3 КОЛОНКИ: Предметы, Лидеры, Риск) --- #}
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+        
+        {# Колонка 1: График Предметов (Исправлен ID) #}
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+            <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span class="w-1.5 h-5 bg-emerald-500 rounded-full"></span>
+                По предметам
+            </h2>
+            <div class="relative h-[350px] w-full">
+                <canvas id="subjectChart"></canvas>
+            </div>
+        </div>
+
+        {# Колонка 2: Лидеры (С исправлением имен) #}
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+            <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span class="w-1.5 h-5 bg-blue-500 rounded-full"></span>
+                Лидеры учебы
+            </h2>
+            <div class="space-y-2 overflow-y-auto max-h-[350px] pr-2 custom-scrollbar">
+                {% for item in top_students %}
+                <a href="{% url 'core:student_progress' item.student.id %}" class="flex items-center justify-between p-3 rounded-xl hover:bg-blue-50/50 border border-transparent hover:border-blue-100 transition-all group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-blue-100 text-blue-700 flex items-center justify-center text-xs font-extrabold ring-2 ring-white shadow-sm shrink-0">
+                            {% if item.student.first_name %}
+                                {{ item.student.first_name|first }}{{ item.student.last_name|first }}
+                            {% else %}
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                            {% endif %}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="font-bold text-gray-800 text-sm truncate group-hover:text-blue-700 transition-colors">
+                                {% if item.student.first_name %}
+                                    {{ item.student.last_name }} {{ item.student.first_name|slice:":1" }}.
+                                {% else %}
+                                    {{ item.student }} {# Фолбэк на имя объекта #}
+                                {% endif %}
+                            </p>
+                            <p class="text-xs text-gray-400 mt-0.5 truncate">{{ item.student.school_class.name|default:"Класс не указан" }}</p>
+                        </div>
                     </div>
-                </div>
-                <div class="xl:col-span-3 bg-white p-6 rounded-lg shadow-md">
-                    {% if user.is_staff or user.profile.role == 'EXPERT' %}
-                        <h2 class="text-xl font-semibold text-gray-700 mb-4">Топ-10 школ по среднему баллу</h2>
-                    {% else %}
-                        <h2 class="text-xl font-semibold text-gray-700 mb-4">Успеваемость классов</h2>
-                    {% endif %}
-                    <div class="relative h-64">
-                        <canvas id="schoolChart"></canvas>
+                    <div class="bg-white px-2.5 py-1 rounded-lg shadow-sm border border-gray-100 text-blue-600 font-bold text-sm">{{ item.avg_score }}</div>
+                </a>
+                {% empty %}
+                <div class="flex flex-col items-center justify-center h-40 text-gray-400"><p>Нет данных</p></div>
+                {% endfor %}
+            </div>
+        </div>
+
+        {# Колонка 3: Зона риска (С исправлением имен) #}
+        <div class="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm flex flex-col">
+            <h2 class="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
+                <span class="w-1.5 h-5 bg-rose-500 rounded-full"></span>
+                Требуют внимания
+            </h2>
+            <div class="space-y-2 overflow-y-auto max-h-[350px] pr-2 custom-scrollbar">
+                {% for item in worst_students %}
+                <a href="{% url 'core:student_progress' item.student.id %}" class="flex items-center justify-between p-3 rounded-xl hover:bg-rose-50/50 border border-transparent hover:border-rose-100 transition-all group">
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-full bg-rose-100 text-rose-700 flex items-center justify-center text-xs font-extrabold ring-2 ring-white shadow-sm shrink-0">
+                            {% if item.student.first_name %}
+                                {{ item.student.first_name|first }}{{ item.student.last_name|first }}
+                            {% else %}
+                                !
+                            {% endif %}
+                        </div>
+                        <div class="min-w-0">
+                            <p class="font-bold text-gray-800 text-sm truncate group-hover:text-rose-700 transition-colors">
+                                {% if item.student.first_name %}
+                                    {{ item.student.last_name }} {{ item.student.first_name|slice:":1" }}.
+                                {% else %}
+                                    {{ item.student }}
+                                {% endif %}
+                            </p>
+                            <p class="text-xs text-gray-400 mt-0.5 truncate">{{ item.student.school_class.name|default:"Класс не указан" }}</p>
+                        </div>
                     </div>
-                </div>
-            </div>
-
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4">Топ-10 предметов по среднему баллу (%)</h2>
-                <div class="relative h-96">
-                    <canvas id="subjectChart"></canvas>
-                </div>
+                    <div class="bg-white px-2.5 py-1 rounded-lg shadow-sm border border-gray-100 text-rose-600 font-bold text-sm">{{ item.avg_score }}</div>
+                </a>
+                {% empty %}
+                <div class="flex flex-col items-center justify-center h-40 text-gray-400"><p>Нет данных</p></div>
+                {% endfor %}
             </div>
         </div>
 
-        {# --- ПРАВАЯ КОЛОНКА СО СПИСКАМИ --- #}
-        <div class="space-y-8">
-
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4 flex items-center">
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-indigo-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>
-                    Недавние тесты
-                </h2>
-                <ul class="space-y-3">
-                    {% for test in recent_tests %}
-                    <li class="p-2 rounded-md hover:bg-gray-50">
-                        <a href="{% url 'core:detailed_results_list' test.test_number %}?test_id={{ test.id }}" class="block">
-                            <p class="font-medium text-gray-800 text-sm">{{ test.name }}</p>
-                            <p class="text-xs text-gray-500">{{ test.school.name }} / {% if test.school_class %}{{ test.school_class.name }}{% endif %} - {{ test.test_date|date:"d.m.Y" }}</p>
-                        </a>
-                    </li>
-                    {% empty %}
-                    <li class="text-center text-gray-500 p-4">Нет недавних тестов.</li>
-                    {% endfor %}
-                </ul>
-            </div>
-
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4 flex items-center">
-                    <svg class="h-6 w-6 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
-                    Лидеры успеваемости
-                </h2>
-                <ul class="space-y-3">
-                    {% for item in top_students %}
-                    <li class="flex items-center justify-between p-2 rounded-md hover:bg-gray-50">
-                        <a href="{% url 'core:student_progress' item.student.id %}" class="flex items-center space-x-3">
-                            <div class="bg-green-100 text-green-600 font-bold rounded-full h-8 w-8 flex items-center justify-center text-sm">{{ forloop.counter }}</div>
-                            <div>
-                                <p class="font-medium text-gray-800 text-sm">{{ item.student }}</p>
-                                <p class="text-xs text-gray-500">{{ item.student.school_class }}</p>
-                            </div>
-                        </a>
-                        <span class="font-bold text-green-600">{{ item.avg_score }}</span>
-                    </li>
-                    {% empty %}
-                    <li class="text-center text-gray-500 p-4">Нет данных.</li>
-                    {% endfor %}
-                </ul>
-            </div>
-
-            <div class="bg-white p-6 rounded-lg shadow-md">
-                <h2 class="text-xl font-semibold text-gray-700 mb-4 flex items-center">
-                    <svg class="h-6 w-6 text-red-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
-                    В зоне внимания
-                </h2>
-                <ul class="space-y-3">
-                    {% for item in worst_students %}
-                    <li class="flex items-center justify-between p-2 rounded-md hover:bg-gray-50">
-                        <a href="{% url 'core:student_progress' item.student.id %}" class="flex items-center space-x-3">
-                             <div class="bg-red-100 text-red-600 font-bold rounded-full h-8 w-8 flex items-center justify-center text-sm">{{ forloop.revcounter }}</div>
-                             <div>
-                                <p class="font-medium text-gray-800 text-sm">{{ item.student }}</p>
-                                <p class="text-xs text-gray-500">{{ item.student.school_class }}</p>
-                            </div>
-                        </a>
-                        <span class="font-bold text-red-600">{{ item.avg_score }}</span>
-                    </li>
-                     {% empty %}
-                    <li class="text-center text-gray-500 p-4">Нет данных.</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
     </div>
+</div>
+
+<style>
+    .custom-scrollbar::-webkit-scrollbar { width: 5px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background-color: #e5e7eb; border-radius: 20px; }
+    .custom-scrollbar::-webkit-scrollbar-thumb:hover { background-color: #d1d5db; }
+</style>
 {% endblock %}
-
 
 {% block scripts %}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
 
-
 <script>
 document.addEventListener('DOMContentLoaded', () => {
     Chart.register(ChartDataLabels);
-    Chart.defaults.plugins.datalabels.display = false; // Отключаем метки по умолчанию
+    
+    // Config
+    Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+    Chart.defaults.color = '#6b7280';
+    Chart.defaults.scale.grid.color = '#f3f4f6';
+    Chart.defaults.plugins.datalabels.display = false;
 
-    const datalabelsConfig = {
-        display: true,
-        anchor: 'end', align: 'end', color: '#4b5563',
-        font: { weight: 'bold', size: 12 },
-        formatter: (value) => Math.round(value),
-    };
+    const commonLabelConfig = { display: true, anchor: 'end', align: 'end', font: { weight: 'bold', size: 11 }, formatter: Math.round };
 
-    // График Школ / Классов
-    const schoolChartLabels = {{ school_chart_labels|safe }};
-    if (schoolChartLabels && schoolChartLabels.length > 0) {
-        const schoolCtx = document.getElementById('schoolChart').getContext('2d');
-        new Chart(schoolCtx, {
+    // 1. Школы
+    const schoolCtx = document.getElementById('schoolChart');
+    if (schoolCtx) {
+        new Chart(schoolCtx.getContext('2d'), {
             type: 'bar',
             data: {
-                labels: schoolChartLabels,
-                datasets: [{
-                    label: 'Средний балл',
-                    data: {{ school_chart_data|safe }},
-                    backgroundColor: 'rgba(79, 70, 229, 0.7)',
-                    borderColor: 'rgba(79, 70, 229, 1)',
-                    borderWidth: 1,
-                    borderRadius: 4,
-                }]
+                labels: {{ school_chart_labels|safe }},
+                datasets: [{ label: 'Балл', data: {{ school_chart_data|safe }}, backgroundColor: '#4f46e5', borderRadius: 6, barPercentage: 0.6 }]
             },
             options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false }, datalabels: datalabelsConfig },
-                scales: { y: { beginAtZero: true } }
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, datalabels: { ...commonLabelConfig, align: 'right', color: '#374151' } },
+                scales: { x: { display: false, max: 100 }, y: { grid: { display: false }, ticks: { color: '#111827', font: { weight: '600' } } } }
             }
         });
     }
 
-    // График Предметов
-    const subjectChartLabels = {{ subject_chart_labels|safe }};
-    if (subjectChartLabels && subjectChartLabels.length > 0) {
-        const subjectCtx = document.getElementById('subjectChart').getContext('2d');
-        new Chart(subjectCtx, {
+    // 2. Предметы
+    const subjectCtx = document.getElementById('subjectChart');
+    if (subjectCtx) {
+        new Chart(subjectCtx.getContext('2d'), {
             type: 'bar',
             data: {
-                labels: subjectChartLabels,
-                datasets: [{
-                    label: 'Средний % выполнения',
-                    data: {{ subject_chart_data|safe }},
-                    backgroundColor: 'rgba(5, 150, 105, 0.7)',
-                    borderColor: 'rgba(5, 150, 105, 1)',
-                    borderWidth: 1,
-                    borderRadius: 4,
-                }]
+                labels: {{ subject_chart_labels|safe }},
+                datasets: [{ label: '%', data: {{ subject_chart_data|safe }}, backgroundColor: '#10b981', borderRadius: 4, barPercentage: 0.7 }]
             },
             options: {
-                indexAxis: 'y',
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: { legend: { display: false }, datalabels: datalabelsConfig },
-                scales: { x: { beginAtZero: true, max: 100 } }
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false }, datalabels: { ...commonLabelConfig, align: 'right', color: '#059669' } },
+                scales: { x: { display: false, max: 100 }, y: { grid: { display: false }, ticks: { color: '#374151' } } }
             }
         });
     }
 
-    // График Распределения успеваемости
-    const distributionData = {{ distribution_chart_data|safe }};
-    if (distributionData && distributionData.some(v => v > 0)) {
-        const distCtx = document.getElementById('performanceDistributionChart').getContext('2d');
-        new Chart(distCtx, {
-            type: 'doughnut',
-            data: {
-                labels: {{ distribution_chart_labels|safe }},
-                datasets: [{
-                    data: distributionData,
-                    backgroundColor: ['#22c55e', '#84cc16', '#facc15', '#ef4444'],
-                    borderColor: '#fff',
-                    borderWidth: 2
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { position: 'bottom', labels: { padding: 15, boxWidth: 12 } },
-                    datalabels: {
-                        display: true,
-                        color: '#fff',
-                        font: { weight: 'bold' },
-                        formatter: (value, ctx) => {
-                            let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
-                            let percentage = (value * 100 / sum);
-                            return percentage > 5 ? percentage.toFixed(0) + '%' : '';
+    // 3. Пончик
+    const distCtx = document.getElementById('performanceDistributionChart');
+    if (distCtx) {
+        const distData = {{ distribution_chart_data|safe }};
+        if (distData && distData.some(v => v > 0)) {
+            new Chart(distCtx.getContext('2d'), {
+                type: 'doughnut',
+                data: {
+                    labels: {{ distribution_chart_labels|safe }},
+                    datasets: [{ data: distData, backgroundColor: ['#22c55e', '#a3e635', '#facc15', '#f43f5e'], borderWidth: 0, hoverOffset: 4 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, cutout: '75%',
+                    plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 20 } },
+                        datalabels: {
+                            display: true, color: '#fff', font: { weight: 'bold' },
+                            formatter: (value, ctx) => {
+                                let sum = ctx.chart.data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                let p = (value * 100 / sum);
+                                return p > 5 ? Math.round(p) + '%' : '';
+                            }
                         }
                     }
                 }
-            }
-        });
+            });
+        }
     }
 });
 </script>
