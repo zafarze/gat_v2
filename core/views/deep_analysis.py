@@ -144,16 +144,18 @@ def deep_analysis_view(request):
             classes_selected_count = selected_classes_qs.filter(parent__isnull=False).count()
             schools_selected_count = selected_schools.count() if selected_schools else accessible_schools.count()
 
-            compare_by = 'school' # По умолчанию
-            
-            # 1. Если выбрано несколько Тестов или Четвертей -> Сравниваем ТЕСТЫ (Динамика)
-            if tests_count > 1 or quarters_count > 1:
+            # ЛОГИКА ОПРЕДЕЛЕНИЯ РЕЖИМА
+            if schools_selected_count > 1 and (tests_count > 1 or quarters_count > 1):
+                # Если выбрано много школ И много временных точек -> Смешанный режим (Все со всеми)
+                compare_by = 'mixed' 
+            elif tests_count > 1 or quarters_count > 1:
+                # Одна школа, но много тестов -> Сравниваем динамику (GAT-1 vs GAT-2)
                 compare_by = 'test'
-            # 2. Если выбрана 1 школа и несколько классов -> Сравниваем КЛАССЫ
             elif schools_selected_count == 1 and classes_selected_count > 1:
+                # Одна школа, много классов -> Сравниваем классы (10А vs 10Б)
                 compare_by = 'class'
-            # 3. Иначе -> Сравниваем ШКОЛЫ
             else:
+                # Иначе (много школ, 1 тест) -> Сравниваем школы
                 compare_by = 'school'
 
             unique_subject_names = sorted(list(set(accessible_subjects_qs.values_list('name', flat=True))))
@@ -195,7 +197,7 @@ def deep_analysis_view(request):
 def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject_id_to_name_map, allowed_subject_ids_int, compare_by='school'):
     """ 
     Обрабатывает результаты. 
-    Поддерживает compare_by = 'school', 'class', 'test'.
+    Поддерживает compare_by = 'school', 'class', 'test', 'mixed'.
     """
     temp_analysis_data = {}
     student_performance = defaultdict(lambda: {
@@ -217,17 +219,25 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
         # Определяем параллель для названия предмета
         parallel_name = school_class.parent.name if school_class.parent else school_class.name
         
-        # --- ✨ ЛОГИКА ОПРЕДЕЛЕНИЯ СУЩНОСТИ ДЛЯ СРАВНЕНИЯ ✨ ---
-        if compare_by == 'test':
+        # --- ✨ ЛОГИКА ОПРЕДЕЛЕНИЯ ИМЕНИ СУЩНОСТИ ДЛЯ ЛЕГЕНДЫ ✨ ---
+        if compare_by == 'mixed':
+            # Сравниваем Школа + Тест (например: "Лицей №1 (GAT-1)")
+            # ID должен быть уникальным для комбинации
+            entity_id = f"S{school.id}_Q{gat_test.quarter.id}_T{gat_test.test_number}"
+            entity_name = f"{school.name} (GAT-{gat_test.test_number})" 
+            
+        elif compare_by == 'test':
             # Сравниваем GAT-1 vs GAT-2. Группируем по ID, чтобы правильно сортировалось
             entity_id = f"{gat_test.quarter.id}_{gat_test.test_number}" 
             entity_name = f"GAT-{gat_test.test_number} ({gat_test.quarter.name})"
+            
         elif compare_by == 'class':
             # Сравниваем Классы
             entity_id = str(school_class.id)
             entity_name = school_class.name
+            
         else:
-            # Сравниваем Школы
+            # Сравниваем Школы (по умолчанию)
             entity_id = str(school.id)
             entity_name = school.name
 
@@ -317,7 +327,7 @@ def _prepare_summary_charts(analysis_data, unique_subject_names):
     })
 
     # 2. График сравнения (Главная фишка)
-    # Сортируем сущности по ключу, чтобы GAT-1 был первым
+    # Сортируем сущности по ключу, чтобы порядок был логичным
     sorted_entity_ids = sorted(analysis_data.keys())
 
     for ent_id in sorted_entity_ids:
@@ -325,7 +335,7 @@ def _prepare_summary_charts(analysis_data, unique_subject_names):
         entity_name = entity_data['name']
         data_points = [entity_data['subjects'].get(name, {}).get('overall_percentage', 0) for name in unique_subject_names]
         
-        # Добавляем Dataset для каждой сущности (GAT-1, GAT-2 или Школа 1, Школа 2)
+        # Добавляем Dataset для каждой сущности
         bar_datasets_comparison.append({'label': entity_name, 'data': data_points})
     
     # Линия среднего (для контекста)
