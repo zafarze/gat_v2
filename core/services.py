@@ -438,7 +438,7 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
             
     existing_classes = {c.name.upper(): c for c in SchoolClass.objects.filter(school=school)}
     
-    # === ИСПРАВЛЕНИЕ 1: Улучшенная карта предметов ===
+    # === ИСПРАВЛЕНИЕ 1: Умная карта предметов (понимает ENGLISH, ALGEBRA) ===
     subjects_map = {}
     for s in Subject.objects.all():
         # 1. Аббревиатура (MAT)
@@ -458,8 +458,8 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
 
     allowed_name_updates = overrides_map.get('update_names_list', []) if overrides_map else []
     
-    # Исправление: берем правильный ключ для классов
-    allowed_class_transfers = overrides_map.get('update_class_ids', []) if overrides_map else [] # Было 'update_classes_list' в старых версиях
+    # Берем правильный ключ для классов
+    allowed_class_transfers = overrides_map.get('update_class_ids', []) if overrides_map else []
 
     processed_ids = set()
     found_subjects = set() # Для авто-добавления предметов
@@ -528,7 +528,7 @@ def process_student_results_upload(gat_test, file_path, overrides_map=None):
                 
                 if updated: student.save()
 
-                # --- Д. Парсинг Оценок ---
+                # --- Д. Парсинг Оценок (ИСПРАВЛЕНО) ---
                 scores_by_subject = defaultdict(dict)
                 total_score = 0
                 for col in df.columns:
