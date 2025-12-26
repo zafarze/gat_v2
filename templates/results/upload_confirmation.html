@@ -1,0 +1,196 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto py-8">
+    <div class="bg-white shadow-lg rounded-xl overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex justify-between items-center">
+            <h1 class="text-xl font-bold text-gray-800">Проверка данных перед загрузкой</h1>
+            <span class="px-3 py-1 bg-indigo-100 text-indigo-800 rounded-full text-sm font-semibold">
+                {{ gat_test.name }}
+            </span>
+        </div>
+
+        <div class="p-6">
+            <div class="grid grid-cols-3 gap-4 mb-8">
+                <div class="text-center p-4 bg-blue-50 rounded-lg">
+                    <div class="text-2xl font-bold text-blue-600">{{ analysis.total_rows }}</div>
+                    <div class="text-sm text-gray-500">Всего строк</div>
+                </div>
+                <div class="text-center p-4 bg-green-50 rounded-lg">
+                    <div class="text-2xl font-bold text-green-600">{{ analysis.new_students|length }}</div>
+                    <div class="text-sm text-gray-500">Новых учеников</div>
+                </div>
+                <div class="text-center p-4 bg-yellow-50 rounded-lg">
+                    <div class="text-2xl font-bold text-yellow-600">{{ analysis.name_conflicts|length }}</div>
+                    <div class="text-sm text-gray-500">Конфликтов имен</div>
+                </div>
+            </div>
+
+            <form method="post">
+                {% csrf_token %}
+                <input type="hidden" name="temp_file_path" value="{{ temp_file_path }}">
+                <input type="hidden" name="gat_test_id" value="{{ gat_test.id }}">
+
+                {% if analysis.name_conflicts %}
+                <div class="mb-8 border rounded-lg p-4 bg-yellow-50/50 border-yellow-100">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg text-yellow-800 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                            Конфликты имен (Выберите, чтобы обновить):
+                        </h3>
+                        <div class="space-x-2 text-sm">
+                            <button type="button" onclick="toggleNameChecks(true)" class="text-indigo-600 hover:underline font-medium">Выбрать все (Из Excel)</button>
+                            <span class="text-gray-300">|</span>
+                            <button type="button" onclick="toggleNameChecks(false)" class="text-gray-600 hover:underline">Снять все (Оставить как в БД)</button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-hidden bg-white shadow-sm rounded-lg border border-gray-200">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase w-16">Да/Нет</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Текущее имя (БД)</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Новое имя (Excel)</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                {% for item in analysis.name_conflicts %}
+                                <tr class="hover:bg-yellow-50/30 transition cursor-pointer" onclick="document.getElementById('check_name_{{ item.id }}').click()">
+                                    <td class="px-4 py-3" onclick="event.stopPropagation()">
+                                        <input type="checkbox" id="check_name_{{ item.id }}" name="update_name_ids" value="{{ item.id }}" 
+                                               class="name-checkbox w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
+                                    </td>
+                                    <td class="px-4 py-3 text-sm text-gray-500 font-mono">{{ item.id }}</td>
+                                    <td class="px-4 py-3 text-sm text-gray-600">{{ item.current_name }}</td>
+                                    <td class="px-4 py-3 text-sm font-bold text-indigo-700 bg-indigo-50">{{ item.new_name }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if analysis.transfers %}
+                <div class="mb-8 border rounded-lg overflow-hidden border-blue-200 shadow-sm bg-white">
+                    <div class="bg-blue-50 px-6 py-4 border-b border-blue-100 flex justify-between items-center">
+                        <div class="flex items-center">
+                            <div class="bg-blue-100 p-2 rounded-full mr-3 text-blue-600">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                            </div>
+                            <h3 class="font-bold text-lg text-blue-900">
+                                Возможные переводы ({{ analysis.transfers|length }})
+                            </h3>
+                        </div>
+                        
+                        <div class="space-x-2 text-sm">
+                            <button type="button" onclick="toggleClassChecks(true)" class="text-blue-700 hover:underline font-medium">
+                                Выбрать все (Из Excel)
+                            </button>
+                            <span class="text-blue-300">|</span>
+                            <button type="button" onclick="toggleClassChecks(false)" class="text-gray-500 hover:underline">
+                                Снять все (Оставить как в БД)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-blue-100">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-16">
+                                        Да/Нет
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase tracking-wider w-1/2">
+                                        Текущие данные (В базе)
+                                    </th>
+                                    <th scope="col" class="px-6 py-3 text-left text-xs font-bold text-blue-600 uppercase tracking-wider w-1/2 bg-blue-50/30">
+                                        Новые данные (Из Excel)
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-100 bg-white">
+                                {% for t in analysis.transfers %}
+                                <tr class="hover:bg-blue-50/30 transition duration-150 group cursor-pointer" onclick="document.getElementById('check_transfer_{{ t.id }}').click()">
+                                    <td class="px-6 py-4 whitespace-nowrap border-r border-dashed border-gray-200" onclick="event.stopPropagation()">
+                                        <input type="checkbox" id="check_transfer_{{ t.id }}" name="update_class_ids" value="{{ t.id }}" 
+                                               class="class-checkbox w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 cursor-pointer">
+                                    </td>
+
+                                    <td class="px-6 py-4 whitespace-nowrap border-r border-dashed border-gray-200">
+                                        <div class="flex flex-col">
+                                            <span class="text-sm font-medium text-gray-900">{{ t.name }}</span>
+                                            <span class="text-xs text-gray-500 mt-1">
+                                                Класс: <span class="font-mono bg-gray-100 px-2 py-0.5 rounded text-gray-700">{{ t.old_class }}</span>
+                                            </span>
+                                        </div>
+                                    </td>
+                                    
+                                    <td class="px-6 py-4 whitespace-nowrap bg-blue-50/10">
+                                        <div class="flex items-center">
+                                            <svg class="w-5 h-5 text-blue-300 mr-3 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                                            
+                                            <div class="flex flex-col">
+                                                <span class="text-sm font-bold text-blue-900">{{ t.name }}</span>
+                                                <span class="text-xs text-blue-600 mt-1">
+                                                    Класс: <span class="font-mono bg-blue-100 px-2 py-0.5 rounded border border-blue-200 text-blue-800">{{ t.new_class }}</span>
+                                                </span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if analysis.new_students %}
+                <div class="mb-6">
+                    <h3 class="font-bold text-gray-700 mb-2">Будут добавлены новые ученики ({{ analysis.new_students|length }})</h3>
+                    <div class="bg-gray-50 p-3 rounded text-sm text-gray-600 max-h-32 overflow-y-auto">
+                        <ul class="list-disc pl-5">
+                            {% for s in analysis.new_students %}
+                                <li>{{ s.name }} ({{ s.class }})</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                </div>
+                {% endif %}
+                
+                <div class="mt-8 pt-6 border-t flex justify-end items-center gap-3">
+                    <a href="{% url 'core:upload_results' %}" 
+                       class="px-5 py-2.5 rounded-lg border border-gray-300 text-gray-700 font-medium hover:bg-gray-50 transition">
+                        Отмена
+                    </a>
+                    
+                    <button type="submit" name="confirm_upload" value="true" 
+                            class="px-6 py-2.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 shadow-md hover:shadow-lg transition flex items-center">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+                        Подтвердить
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Для имен (чекбоксы update_name_ids)
+    function toggleNameChecks(checked) {
+        const checkboxes = document.querySelectorAll('.name-checkbox');
+        checkboxes.forEach(cb => cb.checked = checked);
+    }
+    
+    // Для классов (чекбоксы update_class_ids)
+    function toggleClassChecks(checked) {
+        const checkboxes = document.querySelectorAll('.class-checkbox');
+        checkboxes.forEach(cb => cb.checked = checked);
+    }
+</script>
+{% endblock %}

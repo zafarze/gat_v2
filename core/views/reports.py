@@ -1,4 +1,4 @@
-# D:\New_GAT\core\views\reports.py (ПОЛНАЯ БОЕВАЯ ВЕРСИЯ)
+# D:\New_GAT\core\views\reports.py (ФИНАЛЬНАЯ ИСПРАВЛЕННАЯ ВЕРСИЯ)
 
 import json
 from collections import defaultdict
@@ -9,6 +9,7 @@ from django.http import HttpResponse, JsonResponse
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.db.models import Count, Q
+from django.core.files.storage import default_storage # Нужно для удаления временных файлов
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from openpyxl.styles import Alignment
@@ -25,125 +26,89 @@ from core import services
 from core import utils
 
 # =============================================================================
-# --- 1. ЗАГРУЗКА И ДЕТАЛЬНЫЙ РЕЙТИНГ ---
+# --- 1. ЗАГРУЗКА И ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ---
 # =============================================================================
 
 @login_required
 def upload_results_view(request):
     """
-    Двухэтапная загрузка:
-    1. Анализ (поиск конфликтов ФИО).
-    2. Подтверждение и сохранение.
+    Загрузка результатов с этапом подтверждения.
     """
-    if request.method == 'POST':
-        # ✨ ИСПРАВЛЕНИЕ: Проверяем оба варианта флага подтверждения
-        # 1. confirm_upload='true' (из шаблона upload_review.html)
-        # 2. step='confirm' (на случай, если используется другая логика)
-        is_confirm = (request.POST.get('confirm_upload') == 'true') or (request.POST.get('step') == 'confirm')
+    # 1. Если нажали "ПОДТВЕРДИТЬ" (Финальный шаг)
+    if request.method == 'POST' and 'confirm_upload' in request.POST:
+        temp_path = request.POST.get('temp_file_path')
+        gat_test_id = request.POST.get('gat_test_id')
+        
+        # Получаем галочки имен
+        ids_to_update_names = request.POST.getlist('update_name_ids') 
+        # НОВОЕ: Получаем галочки переводов классов
+        ids_to_update_classes = request.POST.getlist('update_class_ids') 
 
-        # === ШАГ 2: ПОДТВЕРЖДЕНИЕ И ЗАГРУЗКА ===
-        if is_confirm:
-            # Получаем путь к файлу из скрытого поля
-            file_path = request.POST.get('file_path')
+        gat_test = get_object_or_404(GatTest, pk=gat_test_id)
+        
+        # Передаем оба списка в сервис
+        overrides = {
+            'update_names_list': ids_to_update_names,
+            'update_classes_list': ids_to_update_classes
+        }
+        
+        success, report = services.process_student_results_upload(
+            gat_test, 
+            temp_path, 
+            overrides_map=overrides
+        )
+        
+        if default_storage.exists(temp_path):
+            default_storage.delete(temp_path)
             
-            # Получаем ID теста. В шаблоне поле может называться 'gat_test' или 'gat_test_id'
-            gat_test_id = request.POST.get('gat_test') or request.POST.get('gat_test_id')
+        if success:
+            messages.success(request, f"Результаты успешно загружены! Обработано учеников: {report['total_unique_students']}")
+            # === ИЗМЕНЕНИЕ: Формируем URL с параметром test_id ===
+            base_url = reverse('core:detailed_results_list', kwargs={'test_number': gat_test.test_number})
+            return redirect(f"{base_url}?test_id={gat_test.id}")
+
+    # 2. Обычная загрузка (Первый шаг)
+    form = UploadFileForm(request.POST or None, request.FILES or None)
+    
+    if request.method == 'POST' and form.is_valid() and 'confirm_upload' not in request.POST:
+        file = form.cleaned_data['file']
+        gat_test = form.cleaned_data['gat_test']
+        temp_path = default_storage.save(f"temp/results_{file.name}", file)
+        
+        # Анализ файла
+        analysis = services.analyze_results_file(gat_test, temp_path)
+        
+        # --- ИСПРАВЛЕНИЕ ЗДЕСЬ: Проверяем, что ошибка НЕ пустая ---
+        if analysis.get('error'):
+            messages.error(request, analysis['error'])
+            return redirect('core:upload_results')
+        # ----------------------------------------------------------
             
-            gat_test = get_object_or_404(GatTest, pk=gat_test_id)
+        context = {
+            'analysis': analysis,
+            'gat_test': gat_test,
+            'temp_file_path': temp_path,
+            'title': 'Подтверждение загрузки результатов'
+        }
+        return render(request, 'results/upload_confirmation.html', context)
 
-            # Собираем решения пользователя (какие имена обновлять)
-            overrides = {}
-            for key, value in request.POST.items():
-                if key.startswith('decision_'):
-                    student_id = key.replace('decision_', '')
-                    overrides[student_id] = value # 'db' или 'excel'
-
-            try:
-                # Запускаем финальную обработку по ПУТИ к файлу
-                success, report = services.process_student_results_upload(gat_test, file_path, overrides)
-
-                if success:
-                    msg = f"Загрузка завершена! Обработано: {report['total_unique_students']}. Создано: {report['created_students']}. Обновлено имен: {report['updated_names']}."
-                    messages.success(request, msg)
-                    if report.get('errors'):
-                        for err in report['errors']:
-                            messages.warning(request, err)
-                else:
-                    # Если process_student_results_upload вернул False
-                    error_msg = report.get('errors', ['Неизвестная ошибка'])[0]
-                    messages.error(request, f"Ошибка: {error_msg}")
-
-                # Редирект на список результатов
-                return redirect(f"{reverse('core:detailed_results_list', args=[gat_test.test_number])}?test_id={gat_test.id}")
-            
-            except Exception as e:
-                messages.error(request, f"Критическая ошибка при сохранении: {e}")
-                return redirect('core:upload_results')
-
-        # === ШАГ 1: АНАЛИЗ (По умолчанию) ===
-        else:
-            # Пытаемся получить дату из файла для фильтрации формы (если нужно)
-            test_date = None
-            if 'file' in request.FILES:
-                test_date = services.extract_test_date_from_excel(request.FILES['file'])
-            
-            form = UploadFileForm(request.POST, request.FILES, test_date=test_date)
-
-            if form.is_valid():
-                gat_test = form.cleaned_data['gat_test']
-                excel_file = request.FILES['file']
-
-                # 1. Запускаем АНАЛИЗ (возвращает путь к временному файлу и конфликты)
-                analysis = services.analyze_student_results(excel_file)
-
-                if 'error' in analysis:
-                    messages.error(request, analysis['error'])
-                    return redirect('core:upload_results')
-
-                conflicts = analysis['conflicts']
-                file_path = analysis['file_path'] # Путь к сохраненному временному файлу
-
-                # Если конфликтов НЕТ -> Сразу сохраняем
-                # (Можно убрать этот блок, если хотите всегда показывать Review страницу)
-                if not conflicts:
-                    success, report = services.process_student_results_upload(gat_test, file_path, {})
-                    if success:
-                        messages.success(request, f"Успешно! Обработано строк: {report['total_unique_students']}. Новых: {report['created_students']}.")
-                    else:
-                         # Если process_student_results_upload вернул False
-                        error_msg = report.get('errors', ['Неизвестная ошибка'])[0]
-                        messages.error(request, f"Ошибка: {error_msg}")
-                    
-                    return redirect(f"{reverse('core:detailed_results_list', args=[gat_test.test_number])}?test_id={gat_test.id}")
-
-                # Если конфликты ЕСТЬ -> Показываем страницу сравнения
-                context = {
-                    'conflicts': conflicts,
-                    'file_path': file_path, 
-                    'gat_test': gat_test,
-                    'new_students_count': analysis['new_students_count'], # Исправлено имя ключа для шаблона
-                    'total_rows': analysis.get('total_rows', 0)
-                }
-                return render(request, 'dashboard/reports/upload_review.html', context)
-            
-            else:
-                # Ошибки валидации формы (например, не выбран файл)
-                # messages.error(request, "Ошибка валидации формы.") # Можно не дублировать, форма сама покажет
-                pass
-
-    else:
-        # Это блок GET запроса (открытие страницы)
-        form = UploadFileForm()
-
-    # Получаем список всех четвертей для фильтра
+    # 3. GET-запрос (отображение формы)
     all_quarters = Quarter.objects.select_related('year').order_by('-year__start_date', '-start_date')
 
     context = {
         'form': form,
-        'title': 'Загрузка результатов GAT тестов',
-        'all_quarters': all_quarters # <--- ДОБАВЛЯЕМ ЭТУ СТРОКУ
+        'title': 'Загрузка результатов GAT',
+        'all_quarters': all_quarters
     }
+
     return render(request, 'results/upload_form.html', context)
+    
+    return render(request, 'results/upload_form.html', context)
+
+    return render(request, 'results/upload_form.html', {
+        'form': form,
+        'title': 'Загрузка результатов GAT'
+    })
 
 def get_detailed_results_data(test_number, request_get, request_user):
     """
@@ -233,6 +198,9 @@ def get_detailed_results_data(test_number, request_get, request_user):
         'test': latest_test
     }
 
+# =============================================================================
+# --- 2. ПРОСМОТР РЕЗУЛЬТАТОВ (DETAIL VIEWS) ---
+# =============================================================================
 
 @login_required
 def detailed_results_list_view(request, test_number):
@@ -336,7 +304,7 @@ def student_result_delete_view(request, pk):
 
 
 # =============================================================================
-# --- 2. АРХИВЫ ---
+# --- 3. АРХИВЫ (ИСПРАВЛЕННЫЕ И ПОЛНЫЕ ВЕРСИИ) ---
 # =============================================================================
 
 @login_required
@@ -429,7 +397,7 @@ def archive_subclasses_view(request, quarter_pk, school_pk, class_pk):
 
 
 # =============================================================================
-# --- 3. СРАВНИТЕЛЬНЫЕ ОТЧЕТЫ ---
+# --- 4. СРАВНИТЕЛЬНЫЕ ОТЧЕТЫ ---
 # =============================================================================
 
 def _get_data_for_test_obj(gat_test):
@@ -588,7 +556,7 @@ def compare_class_tests_view(request, test1_id, test2_id):
 
 
 # =============================================================================
-# --- 4. АНАЛИЗ (ANALYSIS VIEW) ---
+# --- 5. АНАЛИЗ (ANALYSIS VIEW) ---
 # =============================================================================
 
 @login_required
@@ -665,7 +633,7 @@ def analysis_view(request):
 
 
 # =============================================================================
-# --- 5. ЭКСПОРТ (EXCEL/PDF) ---
+# --- 6. ЭКСПОРТ (EXCEL/PDF) ---
 # =============================================================================
 
 @login_required

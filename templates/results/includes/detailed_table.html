@@ -1,80 +1,113 @@
 {% load custom_filters %}
-<table class="min-w-full divide-y divide-gray-200">
-    <thead class="bg-gray-50">
-        <tr>
-            {# Объединяем ячейки по вертикали #}
-            <th rowspan="2" class="table-header">№</th>
-            <th rowspan="2" class="table-header">Ф.И.О.</th>
-            <th rowspan="2" class="table-header">Класс</th>
 
-            {# Заголовки предметов (объединяют ячейки с номерами вопросов) #}
+<table class="min-w-full divide-y divide-gray-200 border-collapse">
+    <thead class="bg-gray-50 sticky top-0 z-20 shadow-sm">
+        <tr>
+            {# --- ЛЕВАЯ ЧАСТЬ (ЗАКРЕПЛЕНА) --- #}
+            <th rowspan="2" class="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider bg-gray-100 sticky left-0 z-30 border-r border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                №
+            </th>
+            <th rowspan="2" class="px-3 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider bg-gray-100 z-10" style="min-width: 200px;">
+                Ф.И.О.
+            </th>
+            <th rowspan="2" class="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider bg-gray-100 z-10">
+                Класс
+            </th>
+
+            {# --- ЗАГОЛОВКИ ПРЕДМЕТОВ (С ЧЕРНОЙ ЛИНИЕЙ СЛЕВА) --- #}
             {% for header in table_header %}
-            <th colspan="{{ header.questions|length }}" class="table-header">{{ header.subject.name }}</th>
+                {# border-l-2 border-gray-900 = ЧЕРНАЯ ЛИНИЯ #}
+                <th colspan="{{ header.questions|length }}" 
+                    class="px-2 py-3 text-center text-xs font-bold text-gray-800 uppercase tracking-wider bg-gray-100 border-l-2 border-gray-900">
+                    {{ header.subject.name }}
+                </th>
             {% endfor %}
 
-            {# Итог тоже объединяем по вертикали #}
-            <th rowspan="2" class="table-header">Итог</th>
+            {# --- ИТОГИ (ТОЖЕ ОТДЕЛЕНЫ ЧЕРНОЙ ЛИНИЕЙ) --- #}
+            <th rowspan="2" class="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider bg-gray-100 border-l-2 border-gray-900 z-10">
+                Итог
+            </th>
+            <th rowspan="2" class="px-3 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider bg-gray-100 border-l border-gray-200 z-10">
+                Место
+            </th>
         </tr>
         <tr>
-            {# Вторая строка заголовка с номерами вопросов #}
+            {# --- НОМЕРА ВОПРОСОВ --- #}
             {% for header in table_header %}
                 {% for q_num in header.questions %}
-                <th class="table-header text-xs px-2">{{ q_num }}</th>
+                {# Линия слева только у ПЕРВОГО вопроса предмета #}
+                <th class="px-1 py-1 text-center text-[10px] font-medium text-gray-500 bg-gray-50 border-b border-gray-200 
+                           {% if forloop.first %}border-l-2 border-gray-900{% else %}border-l border-gray-200{% endif %}">
+                    {{ q_num }}
+                </th>
                 {% endfor %}
             {% endfor %}
         </tr>
     </thead>
+    
     <tbody class="bg-white divide-y divide-gray-200">
         {% for data in students_data %}
-        <tr class="hover:bg-gray-50">
-            <td class="table-cell font-bold">{{ forloop.counter }}</td>
-            <td class="table-cell font-medium text-gray-900 whitespace-nowrap">
-                {# Используем full_name_ru #}
+        <tr class="hover:bg-gray-50 transition-colors duration-150">
+            {# Номер строки (закреплен) #}
+            <td class="px-3 py-2 whitespace-nowrap text-sm font-bold text-gray-700 sticky left-0 bg-white border-r border-gray-300 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
+                {{ forloop.counter }}
+            </td>
+            {# ФИО #}
+            <td class="px-3 py-2 whitespace-nowrap text-sm font-medium text-gray-900">
                 <a href="{% url 'core:student_progress' data.student.pk %}" class="hover:text-indigo-600 hover:underline">
                     {{ data.student.full_name_ru }}
                 </a>
             </td>
-            <td class="table-cell">{{ data.student.school_class.name }}</td>
+            {# Класс #}
+            <td class="px-3 py-2 whitespace-nowrap text-center text-sm text-gray-500">
+                {{ data.student.school_class.name }}
+            </td>
 
-            {# Ячейки с результатами по вопросам #}
+            {# --- ОТВЕТЫ --- #}
             {% for header in table_header %}
                 {% with subject_id_str=header.subject.id|stringformat:"s" %}
-                {# Получаем словарь ответов для ЭТОГО предмета #}
                 {% with answers_dict=data.result.scores_by_subject|get_item:subject_id_str %}
-                    {% for q_num in header.questions %} {# q_num здесь ЧИСЛО #}
-                        {# --- ✨ ИСПРАВЛЕНИЕ ЗДЕСЬ ✨ --- #}
-                        {# 1. Преобразуем q_num (число) в строку q_num_str #}
+                    {% for q_num in header.questions %}
                         {% with q_num_str=q_num|stringformat:"s" %}
-                            {# 2. Используем q_num_str (строку) для поиска в словаре answers_dict #}
-                            {% with answer=answers_dict|get_item:q_num_str %}
-                                <td class="px-2 py-4 text-center text-xs
-                                    {% if answer is True %}bg-green-50 text-green-800
-                                    {% elif answer is False %}bg-red-50 text-red-800
-                                    {% else %}bg-gray-50 text-gray-400{% endif %}">
-                                    {# Отображаем 1 для True, 0 для False, - для None/другого #}
-                                    {% if answer is True %}1
-                                    {% elif answer is False %}0
-                                    {% else %}-
-                                    {% endif %}
-                                </td>
-                            {% endwith %}
+                        {% with answer=answers_dict|get_item:q_num_str %}
+                            
+                            {# Ячейка ответа. Линия слева, если это первый вопрос предмета #}
+                            <td class="px-1 py-2 text-center text-xs border-r border-gray-100 
+                                       {% if forloop.first %}border-l-2 border-gray-900{% endif %}">
+                                
+                                {% if answer is True %}
+                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded bg-green-100 text-green-700 font-bold text-xs">1</span>
+                                {% elif answer is False %}
+                                    <span class="inline-flex items-center justify-center w-6 h-6 rounded bg-red-50 text-red-400 text-xs">0</span>
+                                {% else %}
+                                    <span class="text-gray-300">-</span>
+                                {% endif %}
+                            </td>
+                            
                         {% endwith %}
-                        {# --- ✨ КОНЕЦ ИСПРАВЛЕНИЯ ✨ --- #}
+                        {% endwith %}
                     {% endfor %}
                 {% endwith %}
                 {% endwith %}
             {% endfor %}
 
-            <td class="table-cell font-bold text-indigo-600">{{ data.total_score }}</td>
+            {# --- ИТОГОВЫЕ ЗНАЧЕНИЯ --- #}
+            <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-bold text-indigo-700 bg-gray-50 border-l-2 border-gray-900">
+                {{ data.total_score }}
+            </td>
+            <td class="px-3 py-2 whitespace-nowrap text-center text-sm font-bold text-gray-800 bg-gray-50 border-l border-gray-200">
+                {% if data.position == 1 %}🥇{% elif data.position == 2 %}🥈{% elif data.position == 3 %}🥉{% else %}{{ data.position }}{% endif %}
+            </td>
         </tr>
         {% empty %}
         <tr>
-            {# Считаем colspan #}
             {% with colspan_val=4 %}
                 {% for header in table_header %}
                     {% with colspan_val=colspan_val|add:header.questions|length %}{% endwith %}
                 {% endfor %}
-                <td colspan="{{ colspan_val }}" class="text-center py-10 text-gray-500">Нет данных для отображения.</td>
+                <td colspan="{{ colspan_val }}" class="px-6 py-10 text-center text-gray-500">
+                    Нет данных для отображения.
+                </td>
             {% endwith %}
         </tr>
         {% endfor %}

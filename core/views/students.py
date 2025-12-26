@@ -9,6 +9,8 @@ import pandas as pd
 import urllib.parse
 from django.db.models import Count, Q
 from django.views.decorators.http import require_POST
+from django.core.files.storage import default_storage
+import os
 
 # Сторонние библиотеки (Django)
 from django.contrib import messages
@@ -359,43 +361,60 @@ def student_delete_multiple_view(request):
 @login_required
 def student_upload_view(request):
     """
-    Обрабатывает загрузку учеников из Excel.
-    Показывает красивый отчет (upload_result.html) вместо редиректа.
+    Двухэтапная загрузка учеников:
+    1. Загрузка файла -> Анализ (Preview).
+    2. Подтверждение -> Сохранение в БД.
     """
-    if request.method == 'POST':
-        form = StudentUploadForm(request.POST, request.FILES, user=request.user)
+    # 1. Если нажали "ПОДТВЕРДИТЬ" (Шаг 2)
+    if request.method == 'POST' and 'confirm_upload' in request.POST:
+        temp_file_path = request.POST.get('temp_file_path')
+        school_id = request.POST.get('school_id')
+        school = get_object_or_404(School, pk=school_id)
         
-        if form.is_valid():
-            file = request.FILES['file']
-            school = form.cleaned_data['school']
+        # Запускаем реальную обработку
+        full_path = default_storage.path(temp_file_path)
+        with open(full_path, 'rb') as f:
+            stats = process_student_upload(f, school=school) # Твоя существующая функция
+            
+        # Чистим временный файл
+        if default_storage.exists(temp_file_path):
+            default_storage.delete(temp_file_path)
 
-            try:
-                # ВЫЗЫВАЕМ ФУНКЦИЮ ОБРАБОТКИ (без приставки services.)
-                report = process_student_upload(file, school=school)
-                
-                # Показываем страницу с результатами
-                context = {
-                    'title': 'Результат импорта',
-                    'school': school,
-                    'report': report
-                }
-                return render(request, 'students/upload_result.html', context)
+        # Показываем результат (как раньше)
+        return render(request, 'upload_result.html', {
+            'report': stats,
+            'title': 'Загрузка завершена'
+        })
 
-            except Exception as e:
-                # Если упало с ошибкой — показываем её
-                messages.error(request, f"Критическая ошибка: {e}")
-                return redirect('core:student_upload')
-        else:
-            messages.error(request, "Ошибка в форме. Пожалуйста, выберите школу и файл.")
+    # 2. Если просто загружают файл (Шаг 1)
+    form = StudentUploadForm(request.POST or None, request.FILES or None, user=request.user)
 
-    else:
-        form = StudentUploadForm(user=request.user)
+    if request.method == 'POST' and form.is_valid():
+        file = form.cleaned_data['file']
+        school = form.cleaned_data['school']
+        
+        # Сохраняем файл временно
+        temp_path = default_storage.save(f"temp/students_{file.name}", file)
+        
+        # Анализируем (функция из Шага 1)
+        analysis = services.analyze_student_upload(temp_path, school)
+        
+        if 'error' in analysis:
+            messages.error(request, analysis['error'])
+            return redirect('core:student_upload')
 
-    context = {
-        'title': 'Загрузить учеников из Excel',
-        'form': form
-    }
-    return render(request, 'students/student_upload_form.html', context)
+        # Рендерим страницу ПРЕДПРОСМОТРА
+        return render(request, 'students/student_upload_preview.html', {
+            'analysis': analysis,
+            'temp_file_path': temp_path,
+            'school': school,
+            'title': 'Подтверждение загрузки'
+        })
+
+    return render(request, 'students/student_upload_form.html', {
+        'form': form,
+        'title': 'Загрузка учеников'
+    })
 
 
 @login_required

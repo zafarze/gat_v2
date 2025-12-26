@@ -1,0 +1,67 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto py-8">
+    <h1 class="text-2xl font-bold mb-6 text-gray-800">Проверка перед загрузкой</h1>
+
+    <div class="grid grid-cols-3 gap-4 mb-8">
+        <div class="bg-green-50 p-4 rounded-lg border border-green-200">
+            <div class="text-2xl font-bold text-green-700">{{ analysis.to_create|length }}</div>
+            <div class="text-sm text-green-600">Новых учеников</div>
+        </div>
+        <div class="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+            <div class="text-2xl font-bold text-yellow-700">{{ analysis.to_update|length }}</div>
+            <div class="text-sm text-yellow-600">Обновятся (ФИО)</div>
+        </div>
+        <div class="bg-gray-50 p-4 rounded-lg border border-gray-200">
+            <div class="text-2xl font-bold text-gray-700">{{ analysis.total_rows }}</div>
+            <div class="text-sm text-gray-600">Всего строк</div>
+        </div>
+    </div>
+
+    {% if analysis.to_update %}
+    <div class="mb-8">
+        <h3 class="font-bold text-lg mb-2">⚠️ Будут изменены данные:</h3>
+        <div class="bg-white shadow rounded overflow-hidden border border-yellow-200">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">ID</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Текущее Имя</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Что изменится</th>
+                    </tr>
+                </thead>
+                <tbody class="bg-white divide-y divide-gray-200">
+                    {% for item in analysis.to_update|slice:":10" %}
+                    <tr>
+                        <td class="px-6 py-4">{{ item.id }}</td>
+                        <td class="px-6 py-4">{{ item.name }}</td>
+                        <td class="px-6 py-4 text-yellow-600">{{ item.changes }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% if analysis.to_update|length > 10 %}
+            <div class="p-3 text-center text-sm text-gray-500">...и еще {{ analysis.to_update|length|add:"-10" }} записей</div>
+            {% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    <form method="post" class="flex justify-end gap-4 mt-8">
+        {% csrf_token %}
+        <input type="hidden" name="temp_file_path" value="{{ temp_file_path }}">
+        <input type="hidden" name="school_id" value="{{ school.id }}">
+        
+        <a href="{% url 'core:student_upload' %}" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition">
+            Отмена
+        </a>
+
+        <button type="submit" name="confirm_upload" value="true" class="px-6 py-3 bg-indigo-600 text-white rounded-lg font-medium hover:bg-indigo-700 shadow-lg transition">
+            ✅ Подтвердить и Сохранить
+        </button>
+    </form>
+</div>
+{% endblock %}
