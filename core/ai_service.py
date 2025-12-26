@@ -305,10 +305,11 @@ def ask_database(user, user_question, chat_history=None):
     ai_keywords = [
         'топ', 'рейтинг', 'лучшие', 'худшие', 'средний', 'балл', 
         'статистика', 'количество', 'список', 'отчет', 'анализ',
-        'максимальный', 'минимальный', 'общий', 'итог', 'результаты'
+        'максимальный', 'минимальный', 'общий', 'итог', 'результаты',
+        'резултат', 'оценки', 'оценка'  # Добавил частые опечатки и варианты
     ]
-    
-    force_ai = any(word in user_question.lower() for word in ai_keywords)
+    has_gat_request = student_info.get('gat_test') is not None
+    force_ai = any(word in user_question.lower() for word in ai_keywords) or has_gat_request
     
     # СТРАТЕГИЯ 1: Если найден ID и он цифровой — ищем строго по нему
     if student_info.get('id') and student_info['id'].isdigit():
@@ -380,21 +381,42 @@ def ask_database(user, user_question, chat_history=None):
 1. core_school (id, name, district) - школы
 2. core_schoolclass (id, name, school_id) - классы
 3. core_student (id, first_name_ru, last_name_ru, school_class_id) - ученики
-4. core_studentresult (student_id, total_score) - РЕЗУЛЬТАТЫ GAT (баллы).
+4. core_gattest (id, name, test_number, quarter_id) - ТЕСТЫ (GAT-1 это test_number=1).
+5. core_studentresult (student_id, gat_test_id, total_score, scores_by_subject) - РЕЗУЛЬТАТЫ.
+   - total_score: Общий балл (число).
+   - scores_by_subject: JSONB поле (например: {{"1": 10, "2": 5}}). Ключи - это ID предметов (не названия!).
+   Связи: core_studentresult.student_id = core_student.id, core_studentresult.gat_test_id = core_gattest.id.
 
 === ВАЖНО ===
 1. Если запрос содержит ID ученика (например: "010001"), ищи строго по ID.
 2. Для средних баллов ВСЕГДА используй ROUND(AVG(sr.total_score), 1).
-3. Для "список класса" выводи: id, first_name_ru, last_name_ru, class_name, school_name.
-4. Ищи ТОЛЬКО в школах с ID IN ({allowed_ids_str}).
-5. Лимит вывода: 50 строк.
+3. Ищи ТОЛЬКО в школах с ID IN ({allowed_ids_str}).
+4. Лимит вывода: 50 строк.
+
+=== ПРАВИЛА ПОИСКА ===
+6. ИМЕНА: Если 2 слова, ищи перекрестно (First Last OR Last First) через ILIKE.
+7. ТЕСТЫ: "GAT-1" = test_number=1.
+
+8. !!! ЕСЛИ СПРАШИВАЮТ РЕЗУЛЬТАТ / БАЛЛ !!!:
+   Делай JOIN core_studentresult. Выводи: total_score.
+
+9. !!! РЕЙТИНГИ (RANK) !!!:
+   Используй RANK() OVER (PARTITION BY ... ORDER BY total_score DESC).
+
+10. !!! РАБОТА С JSON (ПРЕДМЕТЫ) !!!:
+    Поле 'scores_by_subject' имеет тип JSONB.
+    ЗАПРЕЩЕНО использовать json_each().
+    ИСПОЛЬЗУЙ ТОЛЬКО: jsonb_each_text(scores_by_subject).
+    Пример разбора:
+    CROSS JOIN LATERAL jsonb_each_text(core_studentresult.scores_by_subject) AS kv(subject_id, score_val)
 
 === ВОПРОС ===
 "{user_question}"
 
 === ЗАДАНИЕ ===
 1. Сгенерируй ТОЧНЫЙ SQL запрос для PostgreSQL.
-2. Напиши краткий ответ на русском/таджикском.
+2. Если данных нет, напиши "Результат не найден".
+3. В ответе напиши, что анализ сделан по ID предметов (так как названий в JSON нет).
 
 === ФОРМАТ ОТВЕТА (JSON) ===
 {{

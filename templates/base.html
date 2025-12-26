@@ -217,7 +217,39 @@
                 <span class="text-xs text-indigo-400 font-medium">Печатает...</span>
             </div>
         </div>
+<div class="px-4 py-2 bg-slate-50/80 border-t border-slate-100 backdrop-blur-sm">
+    <div class="flex gap-2 overflow-x-auto no-scrollbar" style="scrollbar-width: none; -ms-overflow-style: none;">
+        
+        <button 
+            @click="inputVal = 'Топ 10 школ по рейтингу'; $nextTick(() => $refs.submitBtn.click())"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 rounded-full text-[11px] font-bold hover:bg-indigo-100 active:scale-95 transition-all whitespace-nowrap border border-indigo-100 shadow-sm"
+        >
+            <span>🏆</span> Топ-10
+        </button>
 
+        <button 
+            @click="inputVal = 'Анализ предметов. Какой самый сложный?'; $nextTick(() => $refs.submitBtn.click())"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-purple-50 text-purple-700 rounded-full text-[11px] font-bold hover:bg-purple-100 active:scale-95 transition-all whitespace-nowrap border border-purple-100 shadow-sm"
+        >
+            <span>📊</span> Предметы
+        </button>
+
+        <button 
+            @click="inputVal = 'Найди результат ученика [Фамилия]'; $refs.questionInput.focus()"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 text-gray-600 rounded-full text-[11px] font-bold hover:bg-gray-100 active:scale-95 transition-all whitespace-nowrap border border-gray-200 shadow-sm"
+        >
+            <span>🔍</span> Ученик
+        </button>
+        
+        <button 
+            @click="inputVal = 'Покажи список школ с низкими результатами'; $nextTick(() => $refs.submitBtn.click())"
+            class="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 text-red-700 rounded-full text-[11px] font-bold hover:bg-red-100 active:scale-95 transition-all whitespace-nowrap border border-red-100 shadow-sm"
+        >
+            <span>⚠️</span> Риски
+        </button>
+
+    </div>
+</div>
         <div class="p-4 bg-white border-t border-slate-100">
             {% if user.is_authenticated %}
                 <form hx-post="{% url 'core:ai_ask_api' %}" 

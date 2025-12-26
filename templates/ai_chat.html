@@ -35,7 +35,9 @@
         scrollToBottom() {
             this.$nextTick(() => {
                 const container = document.getElementById('full-chat-container');
-                container.scrollTop = container.scrollHeight;
+                if (container) {
+                    container.scrollTop = container.scrollHeight;
+                }
             });
         }
      }"
@@ -120,10 +122,45 @@
     </div>
 
     <div class="p-6 bg-white border-t border-slate-100 shrink-0">
+        
+        <div class="flex gap-2 overflow-x-auto no-scrollbar pb-3 mb-1" style="scrollbar-width: none; -ms-overflow-style: none;">
+            <button 
+                @click="userMessage = 'Составь топ 10 школ по среднему баллу за GAT-1. Укажи их район.'; submitMessage()"
+                :disabled="isSending"
+                class="flex items-center gap-2 px-4 py-2 bg-indigo-50 text-indigo-700 rounded-full text-xs font-bold hover:bg-indigo-100 active:scale-95 transition-all whitespace-nowrap border border-indigo-100 shadow-sm disabled:opacity-50"
+            >
+                <span>🏆</span> Топ-10 школ
+            </button>
+
+            <button 
+                @click="userMessage = 'Покажи средний балл по каждому предмету за GAT-1. Какой предмет самый сложный?'; submitMessage()"
+                :disabled="isSending"
+                class="flex items-center gap-2 px-4 py-2 bg-purple-50 text-purple-700 rounded-full text-xs font-bold hover:bg-purple-100 active:scale-95 transition-all whitespace-nowrap border border-purple-100 shadow-sm disabled:opacity-50"
+            >
+                <span>📊</span> Предметы
+            </button>
+
+            <button 
+                @click="userMessage = 'Найди результат ученика [Фамилия Имя] за GAT-1. Покажи детали.'; $refs.chatInput.focus()"
+                :disabled="isSending"
+                class="flex items-center gap-2 px-4 py-2 bg-gray-50 text-gray-700 rounded-full text-xs font-bold hover:bg-gray-100 active:scale-95 transition-all whitespace-nowrap border border-gray-200 shadow-sm disabled:opacity-50"
+            >
+                <span>🔍</span> Найти ученика
+            </button>
+
+            <button 
+                @click="userMessage = 'Покажи топ 5 учеников по школе Лицей №1 за GAT-1.'; submitMessage()"
+                :disabled="isSending"
+                class="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-700 rounded-full text-xs font-bold hover:bg-green-100 active:scale-95 transition-all whitespace-nowrap border border-green-100 shadow-sm disabled:opacity-50"
+            >
+                <span>🥇</span> Лидеры школы
+            </button>
+        </div>
         <form @submit.prevent="submitMessage" class="relative max-w-4xl mx-auto flex items-center gap-4">
             <div class="relative flex-1">
                  <input 
-                    type="text" 
+                    type="text"
+                    x-ref="chatInput" 
                     x-model="userMessage"
                     :disabled="isSending"
                     class="w-full bg-slate-100 text-slate-800 text-lg rounded-2xl pl-6 pr-16 py-5 border-2 border-transparent focus:bg-white focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/10 transition-all shadow-inner placeholder-slate-400 outline-none disabled:opacity-60 disabled:cursor-not-allowed"
