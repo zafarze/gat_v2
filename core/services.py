@@ -284,29 +284,44 @@ def analyze_results_file(gat_test, file_path):
 def process_student_results_upload(gat_test, excel_file_path, overrides_map=None):
     """
     Основная функция загрузки результатов GAT.
+    ВКЛЮЧАЕТ ЗАЩИТУ ОТ ДУБЛИКАТОВ СТРОК.
     """
-    if overrides_map is None: overrides_map = {}
+    if overrides_map is None:
+        overrides_map = {}
 
     try:
         full_path = default_storage.path(excel_file_path)
         df = pd.read_excel(full_path, dtype=str)
     except Exception as e:
-        return False, {'errors': [f"Ошибка чтения файла: {e}"]}
+        return False, {'errors': [f"Ошибка чтения файла по пути {excel_file_path}: {e}"]}
 
     df.columns = [normalize_header(col) for col in df.columns]
     column_mapping = {
         'code': 'student_id', 'id': 'student_id', 'student_id': 'student_id',
-        'код': 'student_id', 'id ученика': 'student_id',
-        'surname': 'last_name', 'фамилия': 'last_name', 'lastname': 'last_name',
-        'name': 'first_name', 'имя': 'first_name', 'firstname': 'first_name',
-        'section': 'class_name', 'class': 'class_name', 'класс': 'class_name'
+        'код': 'student_id', 'рамз': 'student_id', 'id ученика': 'student_id',
+        'surname': 'last_name', 'фамилия': 'last_name', 'насаб': 'last_name', 
+        'lastname': 'last_name', 'surname_en': 'last_name',
+        'name': 'first_name', 'имя': 'first_name', 'ном': 'first_name', 
+        'firstname': 'first_name', 'name_en': 'first_name',
+        'section': 'class_name', 'class': 'class_name', 'класс': 'class_name', 
+        'синф': 'class_name', 'grade': 'class_name'
     }
     df.rename(columns=column_mapping, inplace=True)
+
+    # === ИСПРАВЛЕНИЕ: Удаляем дубликаты по ID ученика ===
+    # Если ученик встречается дважды, оставляем последнего (keep='last')
+    if 'student_id' in df.columns:
+        # Сначала чистим ID от мусора, чтобы точно найти дубли
+        df['student_id'] = df['student_id'].astype(str).str.strip()
+        df = df[~df['student_id'].isin(['nan', 'none', '', '0'])] # Убираем пустые
+        df.drop_duplicates(subset=['student_id'], keep='last', inplace=True)
+    # ====================================================
 
     created_students = 0
     updated_names = 0
     results_processed = 0
     errors = []
+    
     batch_grades = []
 
     subjects_map = {}
@@ -316,6 +331,7 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
             subjects_map[normalize_cyrillic(s.abbreviation.strip().lower())] = s
 
     max_test_score = gat_test.questions.aggregate(total=models.Sum('points'))['total'] or 0
+
     student_answers_to_create = [] 
     processed_result_ids = []
 
@@ -327,9 +343,12 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
             row_num = index + 2
             row_dict = row.to_dict()
 
-            # 1. Студент
+            # --- 1. Ищем или создаем студента ---
             student, created, updated = _get_or_create_student_smart(
-                row_dict, test_school_class, test_school, update_names=False
+                row_dict, 
+                test_school_class, 
+                test_school, 
+                update_names=False
             )
             
             if created: created_students += 1
@@ -338,7 +357,7 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
                  errors.append(f"Строка {row_num}: Не удалось создать/найти студента.")
                  continue
 
-            # 2. Имена (Override)
+            # --- 2. Обработка конфликтов имен ---
             excel_last = normalize_cyrillic(str(row.get('last_name', '')).strip())
             excel_first = normalize_cyrillic(str(row.get('first_name', '')).strip())
             
@@ -351,9 +370,10 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
                         student.save()
                         updated_names += 1
 
-            # 3. Баллы
+            # --- 3. Подсчет баллов ---
             scores_by_subject = {} 
             total_score = 0
+            
             current_student_answers_data = defaultdict(dict)
 
             for col_name in df.columns:
@@ -377,29 +397,38 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
                 except (ValueError, TypeError):
                     is_correct = False
 
-                if is_correct: total_score += 1
+                if is_correct: 
+                    total_score += 1
+
                 if str(subject.id) not in scores_by_subject: scores_by_subject[str(subject.id)] = {}
                 scores_by_subject[str(subject.id)][str(q_num)] = is_correct
+                
                 current_student_answers_data[subject][q_num] = is_correct
 
-            # 4. Результат
+            # --- 4. Сохранение результата ---
             student_result, _ = StudentResult.objects.update_or_create(
-                student=student, gat_test=gat_test,
+                student=student,
+                gat_test=gat_test,
                 defaults={'total_score': total_score, 'scores_by_subject': scores_by_subject}
             )
             processed_result_ids.append(student_result.id)
 
-            # 5. Ответы
+            # --- 5. Подготовка StudentAnswer ---
             for subject, answers in current_student_answers_data.items():
                 for q_num, is_correct in answers.items():
                     question = Question.objects.filter(
                         gat_test=gat_test, subject=subject, question_number=q_num
                     ).first()
+                    
                     if not question:
-                        question = Question.objects.create(gat_test=gat_test, subject=subject, question_number=q_num)
+                        question = Question.objects.create(
+                            gat_test=gat_test, subject=subject, question_number=q_num
+                        )
                     
                     student_answers_to_create.append(StudentAnswer(
-                        result=student_result, question=question, is_correct=is_correct
+                        result=student_result,
+                        question=question,
+                        is_correct=is_correct
                     ))
 
             if max_test_score > 0:
@@ -409,20 +438,27 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
             
             results_processed += 1
 
+    # ✨ ОПТИМИЗАЦИЯ BULK
     if processed_result_ids:
+        # Удаляем старые ответы перед записью новых
         StudentAnswer.objects.filter(result_id__in=processed_result_ids).delete()
+    
     if student_answers_to_create:
+        # Теперь безопасно создаем новые, так как дубликатов студентов нет
         StudentAnswer.objects.bulk_create(student_answers_to_create, batch_size=2000)
+
     if default_storage.exists(excel_file_path):
         default_storage.delete(excel_file_path)
 
-    avg_grade = round(sum(batch_grades) / len(batch_grades), 2) if batch_grades else 0
+    avg_grade_batch = 0
+    if batch_grades:
+        avg_grade_batch = round(sum(batch_grades) / len(batch_grades), 2)
 
     return True, {
         'total_unique_students': results_processed,
         'created_students': created_students,
         'updated_names': updated_names,
-        'average_batch_grade': avg_grade,
+        'average_batch_grade': avg_grade_batch,
         'errors': errors
     }
 
