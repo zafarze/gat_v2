@@ -1,4 +1,4 @@
-# D:\New_GAT\core\views\grading.py (ПОЛНАЯ ОБНОВЛЕННАЯ ВЕРСИЯ С ИСПРАВЛЕНИЕМ EXCEL)
+# D:\New_GAT\core\views\grading.py (ФИНАЛЬНАЯ ВЕРСИЯ С ПЕРЕВОДОМ ИМЕН)
 
 import json
 from collections import defaultdict
@@ -6,8 +6,8 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.template.loader import render_to_string
-# ✨ 1. ДОБАВЛЕН ИМПОРТ ДЛЯ ПЕРЕВОДА
-from django.utils.translation import gettext as _ 
+# ✨ 1. ИМПОРТЫ ДЛЯ ЯЗЫКОВ
+from django.utils.translation import gettext as _, get_language 
 from weasyprint import HTML
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
@@ -18,18 +18,14 @@ from ..models import SchoolClass
 
 @login_required
 def grading_view(request):
-    """Отображает страницу 'Таблица оценок' с новой панелью фильтров."""
-    # 1. Получаем основные данные отчета (режим 'grading' посчитает оценки)
+    """Отображает страницу 'Таблица оценок'."""
     context = get_report_context(request.GET, request.user, mode='grading')
-    context['title'] = _('Grading Table') # ✨ Перевод заголовка
+    context['title'] = _('Grading Table')
 
-    # 2. Добавляем логику для подготовки данных для нового фильтра
     selected_school_ids_str = request.GET.getlist('schools')
     context['selected_class_ids'] = request.GET.getlist('school_classes')
     context['selected_class_ids_json'] = json.dumps(context['selected_class_ids'])
     
-    # ✨ ИСПРАВЛЕНИЕ: Получаем выбранные предметы из GET-запроса
-    # Раньше здесь был пустой список, из-за чего предметы "слетали"
     context['selected_subject_ids'] = request.GET.getlist('subjects')
     context['selected_subject_ids_json'] = json.dumps(context['selected_subject_ids'])
     
@@ -64,7 +60,7 @@ def grading_view(request):
 def export_grading_pdf(request):
     """Экспортирует отчет по оценкам в PDF."""
     context = get_report_context(request.GET, request.user, mode='grading')
-    context['title'] = _('Grading Report') # ✨ Перевод
+    context['title'] = _('Grading Report')
     html_string = render_to_string('grading/grading_pdf.html', context) 
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="grading_report.pdf"'
@@ -73,33 +69,34 @@ def export_grading_pdf(request):
 
 @login_required
 def export_grading_excel(request):
-    """Экспортирует отчет по оценкам в Excel с поддержкой перевода."""
+    """Экспортирует отчет по оценкам в Excel с поддержкой перевода имен."""
     context = get_report_context(request.GET, request.user, mode='grading')
     table_headers = context['table_headers']
     table_rows = context['table_rows']
     
+    # ✨ 2. ОПРЕДЕЛЯЕМ ТЕКУЩИЙ ЯЗЫК
+    current_lang = get_language() # вернет 'ru', 'en' или 'tj' (если настроен)
+
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="grading_report.xlsx"'
     
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = str(_('Grading Table')) # ✨ Перевод названия листа
+    sheet.title = str(_('Grading Table'))
     
-    # ✨ 2. ПЕРЕВОД ЗАГОЛОВКОВ КОЛОНОК
-    # Используем _() для строк, которые должны переводиться
+    # Заголовки (переводятся через .po файлы)
     header1 = [_("№"), _("Student Name"), _("Class"), _("Test")]
     for header_data in table_headers: 
         header1.append(header_data['subject'].abbreviation or header_data['subject'].name)
-    header1.append(_("Total Score (grades)")) # ✨ Перевод
+    header1.append(_("Total Score (grades)"))
     sheet.append(header1)
     
     header2 = ["", "", "", ""]
     for header_data in table_headers: 
-        header2.append(_("(10 points)")) # ✨ Перевод
+        header2.append(_("(10 points)"))
     header2.append("")
     sheet.append(header2)
     
-    # Объединение ячеек заголовков
     for col in range(1, 5):
         sheet.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
         sheet.cell(row=1, column=col).alignment = Alignment(vertical='center')
@@ -111,13 +108,21 @@ def export_grading_excel(request):
     for i, row_data in enumerate(table_rows, 1):
         total_grade_score = sum(filter(lambda v: isinstance(v, (int, float)), row_data['grades_by_subject'].values()))
         
-        # ✨ Перевод "GAT Total"
         test_name = _("GAT Total") if row_data.get('is_total') else (row_data.get('result_obj').gat_test.name if row_data.get('result_obj') else '')
 
+        # ✨ 3. ЛОГИКА ВЫБОРА ИМЕНИ
+        student = row_data['student']
+        student_name = student.full_name_ru # По умолчанию русский
+        
+        if current_lang == 'en' and student.full_name_en.strip():
+            student_name = student.full_name_en
+        elif current_lang == 'tj' and student.full_name_tj.strip():
+            student_name = student.full_name_tj
+        
         row = [
             i, 
-            row_data['student'].full_name_ru, # Можно добавить логику выбора языка имени, если нужно
-            str(row_data['student'].school_class),
+            student_name, # Используем динамическое имя
+            str(student.school_class),
             test_name 
         ]
         for header_data in table_headers:
@@ -126,7 +131,6 @@ def export_grading_excel(request):
         row.append(total_grade_score)
         sheet.append(row)
         
-    # Автоподбор ширины колонок
     for col_idx, column_cells in enumerate(sheet.columns, 1):
         max_length = 0
         column = get_column_letter(col_idx)
