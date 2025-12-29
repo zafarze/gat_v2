@@ -1,4 +1,4 @@
-# D:\New_GAT\core\views\grading.py (ПОЛНАЯ ОБНОВЛЕННАЯ ВЕРСИЯ)
+# D:\New_GAT\core\views\grading.py (ПОЛНАЯ ОБНОВЛЕННАЯ ВЕРСИЯ С ИСПРАВЛЕНИЕМ EXCEL)
 
 import json
 from collections import defaultdict
@@ -6,6 +6,8 @@ from django.shortcuts import render
 from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.template.loader import render_to_string
+# ✨ 1. ДОБАВЛЕН ИМПОРТ ДЛЯ ПЕРЕВОДА
+from django.utils.translation import gettext as _ 
 from weasyprint import HTML
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
@@ -19,7 +21,7 @@ def grading_view(request):
     """Отображает страницу 'Таблица оценок' с новой панелью фильтров."""
     # 1. Получаем основные данные отчета (режим 'grading' посчитает оценки)
     context = get_report_context(request.GET, request.user, mode='grading')
-    context['title'] = 'Таблица оценок'
+    context['title'] = _('Grading Table') # ✨ Перевод заголовка
 
     # 2. Добавляем логику для подготовки данных для нового фильтра
     selected_school_ids_str = request.GET.getlist('schools')
@@ -62,7 +64,7 @@ def grading_view(request):
 def export_grading_pdf(request):
     """Экспортирует отчет по оценкам в PDF."""
     context = get_report_context(request.GET, request.user, mode='grading')
-    context['title'] = 'Отчет по оценкам'
+    context['title'] = _('Grading Report') # ✨ Перевод
     html_string = render_to_string('grading/grading_pdf.html', context) 
     response = HttpResponse(content_type='application/pdf')
     response['Content-Disposition'] = 'attachment; filename="grading_report.pdf"'
@@ -71,7 +73,7 @@ def export_grading_pdf(request):
 
 @login_required
 def export_grading_excel(request):
-    """Экспортирует отчет по оценкам в Excel."""
+    """Экспортирует отчет по оценкам в Excel с поддержкой перевода."""
     context = get_report_context(request.GET, request.user, mode='grading')
     table_headers = context['table_headers']
     table_rows = context['table_rows']
@@ -81,20 +83,23 @@ def export_grading_excel(request):
     
     workbook = Workbook()
     sheet = workbook.active
-    sheet.title = 'Таблица оценок'
+    sheet.title = str(_('Grading Table')) # ✨ Перевод названия листа
     
-    header1 = ["№", "ФИО Студента", "Класс", "Тест"]
+    # ✨ 2. ПЕРЕВОД ЗАГОЛОВКОВ КОЛОНОК
+    # Используем _() для строк, которые должны переводиться
+    header1 = [_("№"), _("Student Name"), _("Class"), _("Test")]
     for header_data in table_headers: 
         header1.append(header_data['subject'].abbreviation or header_data['subject'].name)
-    header1.append("Общий балл (из оценок)")
+    header1.append(_("Total Score (grades)")) # ✨ Перевод
     sheet.append(header1)
     
     header2 = ["", "", "", ""]
     for header_data in table_headers: 
-        header2.append("(10 баллов)")
+        header2.append(_("(10 points)")) # ✨ Перевод
     header2.append("")
     sheet.append(header2)
     
+    # Объединение ячеек заголовков
     for col in range(1, 5):
         sheet.merge_cells(start_row=1, start_column=col, end_row=2, end_column=col)
         sheet.cell(row=1, column=col).alignment = Alignment(vertical='center')
@@ -105,11 +110,15 @@ def export_grading_excel(request):
     
     for i, row_data in enumerate(table_rows, 1):
         total_grade_score = sum(filter(lambda v: isinstance(v, (int, float)), row_data['grades_by_subject'].values()))
+        
+        # ✨ Перевод "GAT Total"
+        test_name = _("GAT Total") if row_data.get('is_total') else (row_data.get('result_obj').gat_test.name if row_data.get('result_obj') else '')
+
         row = [
             i, 
-            row_data['student'].full_name_ru,
+            row_data['student'].full_name_ru, # Можно добавить логику выбора языка имени, если нужно
             str(row_data['student'].school_class),
-            "GAT Total" if row_data.get('is_total') else (row_data.get('result_obj').gat_test.name if row_data.get('result_obj') else '')
+            test_name 
         ]
         for header_data in table_headers:
             grade = row_data['grades_by_subject'].get(header_data['subject'].id, "—")
@@ -117,6 +126,7 @@ def export_grading_excel(request):
         row.append(total_grade_score)
         sheet.append(row)
         
+    # Автоподбор ширины колонок
     for col_idx, column_cells in enumerate(sheet.columns, 1):
         max_length = 0
         column = get_column_letter(col_idx)
