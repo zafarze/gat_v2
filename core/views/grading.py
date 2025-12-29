@@ -74,8 +74,12 @@ def export_grading_excel(request):
     table_headers = context['table_headers']
     table_rows = context['table_rows']
     
-    # ✨ 2. ОПРЕДЕЛЯЕМ ТЕКУЩИЙ ЯЗЫК
-    current_lang = get_language()
+    # 1. Получаем язык и приводим к нижнему регистру
+    current_lang = get_language().lower()
+    
+    # --- ОТЛАДКА (Смотри в терминал!) ---
+    print(f"DEBUG: Текущий язык системы: '{current_lang}'") 
+    # ------------------------------------
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="grading_report.xlsx"'
@@ -110,22 +114,26 @@ def export_grading_excel(request):
         
         test_name = _("GAT Total") if row_data.get('is_total') else (row_data.get('result_obj').gat_test.name if row_data.get('result_obj') else '')
 
-        # ✨ 3. ЛОГИКА ВЫБОРА ИМЕНИ (ОБНОВЛЕННАЯ)
+        # ✨ ЖЕЛЕЗОБЕТОННАЯ ЛОГИКА ИМЕН ✨
         student = row_data['student']
-        student_name = student.full_name_ru # По умолчанию - русский
+        student_name = student.full_name_ru # По умолчанию
         
-        lang_code = current_lang.lower() # Например, 'en-us'
-        
-        # Проверяем, начинается ли код с 'en' (чтобы поймать 'en', 'en-us', 'en-gb')
-        if lang_code.startswith('en') and student.full_name_en.strip():
-            student_name = student.full_name_en
-        # Проверяем, начинается ли код с 'tj'
-        elif lang_code.startswith('tj') and student.full_name_tj.strip():
-            student_name = student.full_name_tj
+        # Проверяем 'en', 'en-us', 'en-gb'
+        if current_lang.startswith('en'):
+            if student.full_name_en and student.full_name_en.strip():
+                student_name = student.full_name_en
+            else:
+                # Если язык английский, но имя пустое -> пишем в консоль
+                print(f"DEBUG: У студента ID {student.id} нет английского имени!")
+
+        # Проверяем 'tj'
+        elif current_lang.startswith('tj'):
+            if student.full_name_tj and student.full_name_tj.strip():
+                student_name = student.full_name_tj
         
         row = [
             i, 
-            student_name, # Используем выбранное имя
+            student_name, 
             str(student.school_class),
             test_name 
         ]
