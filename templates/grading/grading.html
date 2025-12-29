@@ -7,8 +7,7 @@
     @media print {
         body { background-color: white !important; }
         aside, header, .action-buttons, .no-print, form, .glass-card { display: none !important; }
-        main { padding: 0 !importa
-nt; margin: 0 !important; }
+        main { padding: 0 !important; margin: 0 !important; }
         #table-wrapper {
             overflow: visible !important; height: auto !important;
             max-height: none !important; box-shadow: none !important;
@@ -23,9 +22,9 @@ nt; margin: 0 !important; }
     <div class="flex justify-between items-center">
         <h1 id="grading-title" class="text-3xl font-bold text-gray-800">Таблица оценок</h1>
         <div id="lang-switcher" class="flex items-center space-x-2">
-            <button onclick="changeLanguage('tj')" class="px-3 py-1 text-sm border rounded-md hover:bg-gray-100">TJ</button>
-            <button onclick="changeLanguage('ru')" class="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 bg-gray-200 font-bold">RU</button>
-            <button onclick="changeLanguage('en')" class="px-3 py-1 text-sm border rounded-md hover:bg-gray-100">EN</button>
+            <button onclick="changeLanguage('tj')" id="btn-lang-tj" class="px-3 py-1 text-sm border rounded-md hover:bg-gray-100">TJ</button>
+            <button onclick="changeLanguage('ru')" id="btn-lang-ru" class="px-3 py-1 text-sm border rounded-md hover:bg-gray-100 bg-gray-200 font-bold">RU</button>
+            <button onclick="changeLanguage('en')" id="btn-lang-en" class="px-3 py-1 text-sm border rounded-md hover:bg-gray-100">EN</button>
         </div>
     </div>
     
@@ -98,18 +97,20 @@ nt; margin: 0 !important; }
                     <div class="p-4 border-b flex justify-between items-center action-buttons">
                         <h2 class="text-lg font-semibold"><span id="students-found-text">Найдено студентов</span>: {{ table_rows|length }}</h2>
                         <div class="flex items-center gap-2">
-                            <button onclick="window.print()" class="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-200 text-xs font-medium">
+                            <button onclick="window.print()" class="flex items-center gap-2 bg-gray-100 text-gray-700 px-3 py-1.5 rounded-md hover:bg-gray-200 text-xs font-medium cursor-pointer">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path></svg>
                                 <span id="btn-print">Печать</span>
                             </button>
-                            <a href="{% url 'core:export_grading_excel' %}?{{ request.GET.urlencode }}" class="flex items-center gap-2 bg-green-100 text-green-800 px-3 py-1.5 rounded-md hover:bg-green-200 text-xs font-medium">
+                            
+                            <button onclick="downloadReport(event, 'excel')" class="flex items-center gap-2 bg-green-100 text-green-800 px-3 py-1.5 rounded-md hover:bg-green-200 text-xs font-medium cursor-pointer">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 <span id="btn-excel">Excel</span>
-                            </a>
-                            <a href="{% url 'core:export_grading_pdf' %}?{{ request.GET.urlencode }}" class="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1.5 rounded-md hover:bg-red-200 text-xs font-medium">
+                            </button>
+                            
+                            <button onclick="downloadReport(event, 'pdf')" class="flex items-center gap-2 bg-red-100 text-red-700 px-3 py-1.5 rounded-md hover:bg-red-200 text-xs font-medium cursor-pointer">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
                                 <span id="btn-pdf">PDF</span>
-                            </a>
+                            </button>
                         </div>
                     </div>
                     
@@ -137,8 +138,8 @@ nt; margin: 0 !important; }
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ forloop.counter }}</td>
                                 <td class="px-4 py-4 text-sm font-medium text-gray-900">
                                     <span class="student-name lang-ru">{{ row.student.full_name_ru }}</span>
-                                    <span class="student-name lang-tj hidden">{{ row.student.full_name_tj }}</span>
-                                    <span class="student-name lang-en hidden">{{ row.student.full_name_en }}</span>
+                                    <span class="student-name lang-tj hidden">{{ row.student.full_name_tj|default:row.student.full_name_ru }}</span>
+                                    <span class="student-name lang-en hidden">{{ row.student.full_name_en|default:row.student.full_name_ru }}</span>
                                 </td>
                                 <td class="px-4 py-4 text-sm text-gray-500">{{ row.student.school_class.name }}</td>
                                 <td class="px-4 py-4 text-sm text-gray-500">
@@ -174,7 +175,7 @@ nt; margin: 0 !important; }
     <script>
         const translations = {
             ru: {
-                gradingTitle: 'Таблица оценок', gradingSubtitle: 'Анализ успеваемости студентов по 10-балльной шкале',
+                gradingTitle: 'Таблица оценок', gradingSubtitle: 'Анализ успеваемости по 10-балльной шкале',
                 labelQuarter: 'Четверти', labelSchools: 'Школы', labelClasses: 'Классы',
                 labelSubjects: 'Предметы', labelTests: 'Тесты', btnReset: 'Сбросить', btnApply: 'Применить',
                 studentsFoundText: 'Найдено студентов', btnPrint: 'Печать', btnExcel: 'Excel', btnPdf: 'PDF',
@@ -197,7 +198,35 @@ nt; margin: 0 !important; }
             }
         };
 
+        // 🔥 ФУНКЦИЯ ДЛЯ СКАЧИВАНИЯ С ЯЗЫКОМ
+        function downloadReport(event, type) {
+            event.preventDefault();
+            
+            // 1. Берем сохраненный язык
+            const lang = localStorage.getItem('gat_grading_lang') || 'ru';
+            
+            // 2. Выбираем базовый URL
+            let baseUrl = "";
+            if (type === 'excel') {
+                baseUrl = "{% url 'core:export_grading_excel' %}";
+            } else {
+                baseUrl = "{% url 'core:export_grading_pdf' %}";
+            }
+            
+            // 3. Берем текущие фильтры из URL страницы
+            const params = new URLSearchParams(window.location.search);
+            
+            // 4. Добавляем язык в параметры
+            params.set('lang', lang);
+            
+            // 5. Переходим по ссылке (скачиваем)
+            window.location.href = `${baseUrl}?${params.toString()}`;
+        }
+
         function changeLanguage(lang) {
+            // 🔥 Сохраняем выбор языка
+            localStorage.setItem('gat_grading_lang', lang);
+
             const langData = translations[lang]; 
             if (!langData) return;
             const setText = (id, text) => { const el = document.getElementById(id); if (el) el.innerText = text; };
@@ -227,14 +256,25 @@ nt; margin: 0 !important; }
                 if (span.classList.contains('lang-' + lang)) { span.classList.remove('hidden'); }
             });
             document.querySelectorAll('#lang-switcher button').forEach(button => {
+                // Сбрасываем стили
                 button.classList.remove('bg-gray-200', 'font-bold');
-                if (button.innerText.toLowerCase() === lang) { button.classList.add('bg-gray-200', 'font-bold'); }
+                button.classList.add('hover:bg-gray-100');
+                
+                // Проверяем по ID кнопки, чтобы точно подсветить нужную
+                if (button.id === 'btn-lang-' + lang) { 
+                    button.classList.add('bg-gray-200', 'font-bold');
+                    button.classList.remove('hover:bg-gray-100');
+                }
             });
         }
     </script>
     
     <script>
     document.addEventListener('DOMContentLoaded', function () {
+        // 🔥 Восстанавливаем язык при загрузке
+        const savedLang = localStorage.getItem('gat_grading_lang') || 'ru';
+        changeLanguage(savedLang);
+
         const form = document.getElementById('grading-form');
         if (!form) return;
 
@@ -252,7 +292,6 @@ nt; margin: 0 !important; }
         const classesApiUrl = "{% url 'core:api_load_classes_as_chips' %}";
         const subjectsApiUrl = "{% url 'core:api_load_subjects_for_filters' %}";
 
-        // ✨ ИСПРАВЛЕНИЕ: Читаем ID, переданные из view (grading.py)
         const selectedClassIds = {{ selected_class_ids_json|safe }}.map(String);
         const selectedSubjectIds = {{ selected_subject_ids_json|safe }}.map(String);
 
@@ -283,7 +322,6 @@ nt; margin: 0 !important; }
             const params = new URLSearchParams();
             school_ids.forEach(id => params.append('schools', id));
             
-            // ✨ ИСПРАВЛЕНИЕ: Передаем ID классов, чтобы API вернуло их отмеченными
             selectedClassIds.forEach(id => params.append('school_classes', id));
             
             classesContainer.innerHTML = '<p class="text-sm text-gray-500">Загрузка...</p>';
@@ -296,9 +334,7 @@ nt; margin: 0 !important; }
 
         const loadSubjects = () => {
             const school_ids = getSelectedValues(schoolsCard);
-            // ✨ ИСПРАВЛЕНИЕ: Получаем классы из контейнера, т.к. он мог динамически обновиться
             let class_ids = Array.from(classesContainer.querySelectorAll('input[name="school_classes"]:checked')).map(cb => cb.value);
-            // Если после загрузки ничего не выбрано, но классы есть, используем все
             if (class_ids.length === 0 && classesContainer.querySelector('input[name="school_classes"]')) {
                  class_ids = Array.from(classesContainer.querySelectorAll('input[name="school_classes"]')).map(inp => inp.value);
             }
@@ -319,11 +355,9 @@ nt; margin: 0 !important; }
                     subjectsContainer.innerHTML = '';
                     if (data.subjects && data.subjects.length > 0) {
                         data.subjects.forEach(subject => {
-                            // ✨ ИСПРАВЛЕНИЕ: Проверяем, был ли этот предмет выбран ранее
                             const isChecked = selectedSubjectIds.includes(String(subject.id)) ? 'checked' : '';
                             const label = document.createElement('label');
                             label.className = 'chip';
-                            // ✨ ИСПРАВЛЕНИЕ: Добавляем 'isChecked' в HTML
                             label.innerHTML = `<input type="checkbox" name="subjects" value="${subject.id}" ${isChecked}><span>${subject.name}</span>`;
                             subjectsContainer.appendChild(label);
                         });
@@ -339,17 +373,7 @@ nt; margin: 0 !important; }
             if (card) { card.addEventListener('change', loadSubjects); }
         });
         
-        // ✨ ИСПРАВЛЕНИЕ: Вызываем loadSubjects() при загрузке, чтобы отобразить
-        // выбранные предметы, если все нужные фильтры (школа, класс, тест) уже активны
         loadSubjects();
-
-        // ✨ ИСПРАВЛЕНИЕ: Этот цикл не нужен, т.к. чипы для "quarters", "schools" и т.д.
-        // уже рендерятся с 'checked' из Django.
-        /*
-        ['quarters', 'schools', 'school_classes', 'subjects', 'test_numbers', 'days'].forEach(filterName => {
-            ...
-        });
-        */
 
         const tableBody = document.getElementById('grading-table-body');
         if(tableBody) {
