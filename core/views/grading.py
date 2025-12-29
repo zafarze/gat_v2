@@ -19,6 +19,8 @@ from ..models import SchoolClass
 @login_required
 def grading_view(request):
     """Отображает страницу 'Таблица оценок'."""
+    from django.utils.translation import get_language
+    print(f"\n🔥🔥🔥 ПРОВЕРКА ЯЗЫКА: {get_language()} 🔥🔥🔥\n")
     context = get_report_context(request.GET, request.user, mode='grading')
     context['title'] = _('Grading Table')
 
@@ -69,17 +71,22 @@ def export_grading_pdf(request):
 
 @login_required
 def export_grading_excel(request):
-    """Экспортирует отчет по оценкам в Excel с поддержкой перевода имен."""
+    """Экспортирует отчет по оценкам в Excel с принудительным выбором языка."""
+    # 1. Получаем контекст
     context = get_report_context(request.GET, request.user, mode='grading')
     table_headers = context['table_headers']
     table_rows = context['table_rows']
     
-    # 1. Получаем язык и приводим к нижнему регистру
-    current_lang = get_language().lower()
+    # ✨ ГЛАВНОЕ ИСПРАВЛЕНИЕ: Читаем язык из ссылки (URL) ✨
+    # Если в ссылке есть ?lang=en, то используем его. Если нет — берем системный.
+    lang_param = request.GET.get('lang', '').lower()
     
-    # --- ОТЛАДКА (Смотри в терминал!) ---
-    print(f"DEBUG: Текущий язык системы: '{current_lang}'") 
-    # ------------------------------------
+    if lang_param:
+        current_lang = lang_param
+        print(f"DEBUG: Язык взят из ссылки URL: '{current_lang}'")
+    else:
+        current_lang = get_language().lower()
+        print(f"DEBUG: Язык взят из настроек Django: '{current_lang}'")
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="grading_report.xlsx"'
@@ -114,18 +121,14 @@ def export_grading_excel(request):
         
         test_name = _("GAT Total") if row_data.get('is_total') else (row_data.get('result_obj').gat_test.name if row_data.get('result_obj') else '')
 
-        # ✨ ЖЕЛЕЗОБЕТОННАЯ ЛОГИКА ИМЕН ✨
+        # ✨ ЛОГИКА ВЫБОРА ИМЕНИ (С учетом принудительного языка)
         student = row_data['student']
         student_name = student.full_name_ru # По умолчанию
         
-        # Проверяем 'en', 'en-us', 'en-gb'
+        # Проверяем 'en' (включая en-us, en-gb)
         if current_lang.startswith('en'):
             if student.full_name_en and student.full_name_en.strip():
                 student_name = student.full_name_en
-            else:
-                # Если язык английский, но имя пустое -> пишем в консоль
-                print(f"DEBUG: У студента ID {student.id} нет английского имени!")
-
         # Проверяем 'tj'
         elif current_lang.startswith('tj'):
             if student.full_name_tj and student.full_name_tj.strip():
