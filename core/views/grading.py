@@ -75,7 +75,7 @@ def export_grading_excel(request):
     table_rows = context['table_rows']
     
     # ✨ 2. ОПРЕДЕЛЯЕМ ТЕКУЩИЙ ЯЗЫК
-    current_lang = get_language() # вернет 'ru', 'en' или 'tj' (если настроен)
+    current_lang = get_language()
 
     response = HttpResponse(content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
     response['Content-Disposition'] = 'attachment; filename="grading_report.xlsx"'
@@ -84,7 +84,7 @@ def export_grading_excel(request):
     sheet = workbook.active
     sheet.title = str(_('Grading Table'))
     
-    # Заголовки (переводятся через .po файлы)
+    # Заголовки
     header1 = [_("№"), _("Student Name"), _("Class"), _("Test")]
     for header_data in table_headers: 
         header1.append(header_data['subject'].abbreviation or header_data['subject'].name)
@@ -110,18 +110,22 @@ def export_grading_excel(request):
         
         test_name = _("GAT Total") if row_data.get('is_total') else (row_data.get('result_obj').gat_test.name if row_data.get('result_obj') else '')
 
-        # ✨ 3. ЛОГИКА ВЫБОРА ИМЕНИ
+        # ✨ 3. ЛОГИКА ВЫБОРА ИМЕНИ (ОБНОВЛЕННАЯ)
         student = row_data['student']
-        student_name = student.full_name_ru # По умолчанию русский
+        student_name = student.full_name_ru # По умолчанию - русский
         
-        if current_lang == 'en' and student.full_name_en.strip():
+        lang_code = current_lang.lower() # Например, 'en-us'
+        
+        # Проверяем, начинается ли код с 'en' (чтобы поймать 'en', 'en-us', 'en-gb')
+        if lang_code.startswith('en') and student.full_name_en.strip():
             student_name = student.full_name_en
-        elif current_lang == 'tj' and student.full_name_tj.strip():
+        # Проверяем, начинается ли код с 'tj'
+        elif lang_code.startswith('tj') and student.full_name_tj.strip():
             student_name = student.full_name_tj
         
         row = [
             i, 
-            student_name, # Используем динамическое имя
+            student_name, # Используем выбранное имя
             str(student.school_class),
             test_name 
         ]
