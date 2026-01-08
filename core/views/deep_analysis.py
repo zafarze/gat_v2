@@ -162,9 +162,13 @@ def deep_analysis_view(request):
             subject_id_to_name_map = {s.id: s.name for s in accessible_subjects_qs}
             allowed_subject_ids_int = set(subject_id_to_name_map.keys())
 
+            # Передаем список выбранных классов для умной группировки
+            explicit_class_ids = set(selected_classes_qs.values_list('id', flat=True))
+            
             # Запускаем обработку с новым compare_by
             analysis_data, student_performance, new_unique_subjects = _process_results_for_deep_analysis(
-                results_qs, unique_subject_names, subject_id_to_name_map, allowed_subject_ids_int, compare_by
+                results_qs, unique_subject_names, subject_id_to_name_map, 
+                allowed_subject_ids_int, compare_by, explicit_class_ids
             )
 
             summary_chart_data, comparison_chart_data = _prepare_summary_charts(
@@ -194,11 +198,16 @@ def deep_analysis_view(request):
 # --- Вспомогательные функции ---
 # ==========================================================
 
-def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject_id_to_name_map, allowed_subject_ids_int, compare_by='school'):
+def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject_id_to_name_map, 
+                                       allowed_subject_ids_int, compare_by='school', explicit_class_ids=None):
     """ 
     Обрабатывает результаты. 
     Поддерживает compare_by = 'school', 'class', 'test', 'mixed'.
+    explicit_class_ids: set() - ID классов, явно выбранных пользователем (не через параллель)
     """
+    if explicit_class_ids is None:
+        explicit_class_ids = set()
+        
     temp_analysis_data = {}
     student_performance = defaultdict(lambda: {
         'subject_scores': defaultdict(list),
@@ -208,7 +217,8 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
     dynamic_subjects = set() 
 
     # Оптимизация: предзагрузка
-    results_qs = results_qs.select_related('student__school_class', 'student__school_class__school', 'student__school_class__parent', 'gat_test', 'gat_test__quarter')
+    results_qs = results_qs.select_related('student__school_class', 'student__school_class__school', 
+                                           'student__school_class__parent', 'gat_test', 'gat_test__quarter')
 
     for result in results_qs:
         student = result.student
@@ -222,19 +232,28 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
         # --- ✨ ЛОГИКА ОПРЕДЕЛЕНИЯ ИМЕНИ СУЩНОСТИ ДЛЯ ЛЕГЕНДЫ ✨ ---
         if compare_by == 'mixed':
             # Сравниваем Школа + Тест (например: "Лицей №1 (GAT-1)")
-            # ID должен быть уникальным для комбинации
             entity_id = f"S{school.id}_Q{gat_test.quarter.id}_T{gat_test.test_number}"
             entity_name = f"{school.name} (GAT-{gat_test.test_number})" 
             
         elif compare_by == 'test':
-            # Сравниваем GAT-1 vs GAT-2. Группируем по ID, чтобы правильно сортировалось
+            # Сравниваем GAT-1 vs GAT-2
             entity_id = f"{gat_test.quarter.id}_{gat_test.test_number}" 
             entity_name = f"GAT-{gat_test.test_number} ({gat_test.quarter.name})"
             
         elif compare_by == 'class':
-            # Сравниваем Классы
-            entity_id = str(school_class.id)
-            entity_name = school_class.name
+            # --- ВАЖНОЕ ИСПРАВЛЕНИЕ: УМНАЯ ГРУППИРОВКА КЛАССОВ ---
+            # Если класс был явно выбран (например, 10А), показываем его имя
+            if school_class.id in explicit_class_ids:
+                entity_id = str(school_class.id)
+                entity_name = school_class.name
+            # Если класс не был явно выбран, но его родитель (параллель) был выбран
+            elif school_class.parent and school_class.parent.id in explicit_class_ids:
+                entity_id = str(school_class.parent.id)
+                entity_name = school_class.parent.name
+            # Иначе (не должно происходить, если фильтрация работает правильно)
+            else:
+                entity_id = str(school_class.id)
+                entity_name = school_class.name
             
         else:
             # Сравниваем Школы (по умолчанию)
@@ -262,7 +281,8 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
                 subject_id = int(subject_id_str)
                 if subject_id in allowed_subject_ids_int:
                     base_subject_name = subject_id_to_name_map.get(subject_id)
-                    if not base_subject_name or not isinstance(answers, dict): continue
+                    if not base_subject_name or not isinstance(answers, dict): 
+                        continue
                     
                     # Имя предмета включает параллель, чтобы не смешивать программы разных классов
                     full_subject_name = f"{base_subject_name} ({parallel_name})"
