@@ -135,36 +135,45 @@ def deep_analysis_view(request):
                      all_subject_ids_in_results.update(int(sid) for sid in r.scores_by_subject.keys())
              accessible_subjects_qs = Subject.objects.filter(id__in=all_subject_ids_in_results)
 
-        # --- ✨ НОВАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ СУЩНОСТИ ДЛЯ СРАВНЕНИЯ (COMPARE_BY) ✨ ---
+        # --- ИСПРАВЛЕННАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ СУЩНОСТИ ДЛЯ СРАВНЕНИЯ (COMPARE_BY) ---
         if results_qs.exists() and accessible_subjects_qs.exists():
             
             # Считаем количество выбранных сущностей
             tests_count = len(selected_test_numbers)
             quarters_count = selected_quarters.count()
-            classes_selected_count = selected_classes_qs.filter(parent__isnull=False).count()
+            
+            # Считаем количество выбранных КОНКРЕТНЫХ классов (не параллелей)
+            selected_specific_classes = selected_classes_qs.filter(parent__isnull=False)
+            classes_selected_count = selected_specific_classes.count()
+            
             schools_selected_count = selected_schools.count() if selected_schools else accessible_schools.count()
 
-            # ЛОГИКА ОПРЕДЕЛЕНИЯ РЕЖИМА
-            if schools_selected_count > 1 and (tests_count > 1 or quarters_count > 1):
-                # Если выбрано много школ И много временных точек -> Смешанный режим (Все со всеми)
-                compare_by = 'mixed' 
-            elif tests_count > 1 or quarters_count > 1:
-                # Одна школа, но много тестов -> Сравниваем динамику (GAT-1 vs GAT-2)
-                compare_by = 'test'
-            elif schools_selected_count == 1 and classes_selected_count > 1:
-                # Одна школа, много классов -> Сравниваем классы (10А vs 10Б)
+            # ИСПРАВЛЕННАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ РЕЖИМА
+            # ПРИОРИТЕТ 1: Если выбраны конкретные классы -> сравнение по классам
+            if classes_selected_count > 0:
                 compare_by = 'class'
+            # ПРИОРИТЕТ 2: Если выбрано много школ и много тестов -> смешанный режим
+            elif schools_selected_count > 1 and (tests_count > 1 or quarters_count > 1):
+                compare_by = 'mixed'
+            # ПРИОРИТЕТ 3: Если выбрано много тестов -> сравнение тестов
+            elif tests_count > 1 or quarters_count > 1:
+                compare_by = 'test'
+            # ПРИОРИТЕТ 4: Иначе -> сравнение школ
             else:
-                # Иначе (много школ, 1 тест) -> Сравниваем школы
                 compare_by = 'school'
 
             unique_subject_names = sorted(list(set(accessible_subjects_qs.values_list('name', flat=True))))
             subject_id_to_name_map = {s.id: s.name for s in accessible_subjects_qs}
             allowed_subject_ids_int = set(subject_id_to_name_map.keys())
 
+            # Получаем ID явно выбранных классов и параллелей
+            explicit_class_ids = set(selected_classes_qs.values_list('id', flat=True))
+            explicit_parent_ids = set(selected_classes_qs.filter(parent__isnull=True).values_list('id', flat=True))
+            
             # Запускаем обработку с новым compare_by
             analysis_data, student_performance, new_unique_subjects = _process_results_for_deep_analysis(
-                results_qs, unique_subject_names, subject_id_to_name_map, allowed_subject_ids_int, compare_by
+                results_qs, unique_subject_names, subject_id_to_name_map, 
+                allowed_subject_ids_int, compare_by, explicit_class_ids, explicit_parent_ids
             )
 
             summary_chart_data, comparison_chart_data = _prepare_summary_charts(
@@ -194,21 +203,47 @@ def deep_analysis_view(request):
 # --- Вспомогательные функции ---
 # ==========================================================
 
-def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject_id_to_name_map, allowed_subject_ids_int, compare_by='school'):
+def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject_id_to_name_map, 
+                                       allowed_subject_ids_int, compare_by='school', 
+                                       explicit_class_ids=None, explicit_parent_ids=None):
     """ 
     Обрабатывает результаты. 
     Поддерживает compare_by = 'school', 'class', 'test', 'mixed'.
+    explicit_class_ids: set() - ID классов, явно выбранных пользователем
+    explicit_parent_ids: set() - ID параллелей (родительских классов), явно выбранных пользователем
     """
+    if explicit_class_ids is None:
+        explicit_class_ids = set()
+    if explicit_parent_ids is None:
+        explicit_parent_ids = set()
+        
     temp_analysis_data = {}
     student_performance = defaultdict(lambda: {
         'subject_scores': defaultdict(list),
         'name': '', 'class_name': '', 'school_name': ''
     })
 
-    dynamic_subjects = set() 
+    dynamic_subjects = set()
 
     # Оптимизация: предзагрузка
-    results_qs = results_qs.select_related('student__school_class', 'student__school_class__school', 'student__school_class__parent', 'gat_test', 'gat_test__quarter')
+    results_qs = results_qs.select_related('student__school_class', 'student__school_class__school', 
+                                           'student__school_class__parent', 'gat_test', 'gat_test__quarter')
+
+    # Собираем информацию о выбранных классах и их родителях
+    selected_classes_info = {}
+    for result in results_qs:
+        school_class = result.student.school_class
+        
+        # Определяем, был ли этот класс или его родитель выбран явно
+        class_selected = school_class.id in explicit_class_ids
+        parent_selected = school_class.parent and school_class.parent.id in explicit_parent_ids
+        
+        selected_classes_info[school_class.id] = {
+            'class': school_class,
+            'class_selected': class_selected,
+            'parent_selected': parent_selected,
+            'parent': school_class.parent
+        }
 
     for result in results_qs:
         student = result.student
@@ -219,22 +254,45 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
         # Определяем параллель для названия предмета
         parallel_name = school_class.parent.name if school_class.parent else school_class.name
         
-        # --- ✨ ЛОГИКА ОПРЕДЕЛЕНИЯ ИМЕНИ СУЩНОСТИ ДЛЯ ЛЕГЕНДЫ ✨ ---
+        # --- ЛОГИКА ОПРЕДЕЛЕНИЯ ИМЕНИ СУЩНОСТИ ДЛЯ ЛЕГЕНДЫ ---
         if compare_by == 'mixed':
             # Сравниваем Школа + Тест (например: "Лицей №1 (GAT-1)")
-            # ID должен быть уникальным для комбинации
             entity_id = f"S{school.id}_Q{gat_test.quarter.id}_T{gat_test.test_number}"
             entity_name = f"{school.name} (GAT-{gat_test.test_number})" 
             
         elif compare_by == 'test':
-            # Сравниваем GAT-1 vs GAT-2. Группируем по ID, чтобы правильно сортировалось
+            # Сравниваем GAT-1 vs GAT-2
             entity_id = f"{gat_test.quarter.id}_{gat_test.test_number}" 
             entity_name = f"GAT-{gat_test.test_number} ({gat_test.quarter.name})"
             
         elif compare_by == 'class':
-            # Сравниваем Классы
-            entity_id = str(school_class.id)
-            entity_name = school_class.name
+            # ИСПРАВЛЕННАЯ ЛОГИКА ДЛЯ КЛАССОВ:
+            # 1. Если конкретный класс был выбран явно (например, 10А) -> показываем его
+            if school_class.id in explicit_class_ids:
+                entity_id = str(school_class.id)
+                entity_name = school_class.name
+            # 2. Если класс не выбран явно, но его родитель (параллель) выбран
+            elif school_class.parent and school_class.parent.id in explicit_parent_ids:
+                # Проверяем, есть ли среди выбранных классов этой параллели
+                # конкретные классы, выбранные явно
+                has_explicit_child_class = any(
+                    info['class_selected'] and info['parent'] and info['parent'].id == school_class.parent.id
+                    for info in selected_classes_info.values()
+                )
+                
+                if has_explicit_child_class:
+                    # Если есть хотя бы один явно выбранный класс этой параллели,
+                    # то этот класс (не выбранный явно) не должен отображаться
+                    continue
+                else:
+                    # Если ни один класс этой параллели не выбран явно,
+                    # показываем параллель как единую группу
+                    entity_id = str(school_class.parent.id)
+                    entity_name = school_class.parent.name
+            # 3. Если ничего не выбрано (должно быть отфильтровано на предыдущем этапе)
+            else:
+                entity_id = str(school_class.id)
+                entity_name = school_class.name
             
         else:
             # Сравниваем Школы (по умолчанию)
@@ -262,7 +320,8 @@ def _process_results_for_deep_analysis(results_qs, unique_subject_names, subject
                 subject_id = int(subject_id_str)
                 if subject_id in allowed_subject_ids_int:
                     base_subject_name = subject_id_to_name_map.get(subject_id)
-                    if not base_subject_name or not isinstance(answers, dict): continue
+                    if not base_subject_name or not isinstance(answers, dict): 
+                        continue
                     
                     # Имя предмета включает параллель, чтобы не смешивать программы разных классов
                     full_subject_name = f"{base_subject_name} ({parallel_name})"
