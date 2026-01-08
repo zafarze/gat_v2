@@ -108,6 +108,7 @@
                         <tr>
                             <th rowspan="2" class="table-header">№</th>
                             <th rowspan="2" class="table-header" data-lang-key="th_name">ФИО Студента</th>
+                            <th rowspan="2" class="table-header" data-lang-key="th_school">Школа</th>
                             <th rowspan="2" class="table-header" data-lang-key="th_class">Класс</th>
                             <th rowspan="2" class="table-header" data-lang-key="th_test">Тест</th>
                             {% for header in table_headers %}
@@ -134,6 +135,8 @@
                                 <span class="student-name name-en lang-hidden">{{ row.student.full_name_en|default:row.student.full_name_ru }}</span>
                             </td>
 
+                            <td class="table-cell text-center text-gray-700">{{ row.student.school_class.school.name }}</td>
+                            
                             <td class="table-cell text-center text-gray-700">{{ row.student.school_class.name }}</td>
                             <td class="table-cell text-center text-gray-700">{{ row.result_obj.gat_test.name }}</td>
                             {% for header in table_headers %}
@@ -197,6 +200,7 @@ const translations = {
         found_students: "Найдено студентов",
         print: "Печать",
         th_name: "ФИО Студента",
+        th_school: "Школа", // ✨ ДОБАВЛЕНО
         th_class: "Класс",
         th_test: "Тест",
         th_total: "Общий балл",
@@ -221,6 +225,7 @@ const translations = {
         found_students: "Донишҷӯён",
         print: "Чоп",
         th_name: "Ному насаб",
+        th_school: "Мактаб", // ✨ ДОБАВЛЕНО
         th_class: "Синф",
         th_test: "Тест",
         th_total: "Холи умумӣ",
@@ -245,6 +250,7 @@ const translations = {
         found_students: "Students Found",
         print: "Print",
         th_name: "Student Name",
+        th_school: "School", // ✨ ДОБАВЛЕНО
         th_class: "Class",
         th_test: "Test",
         th_total: "Total Score",
