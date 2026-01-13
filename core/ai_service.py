@@ -387,7 +387,7 @@ def ask_database(user, user_question, chat_history=None):
     force_ai = any(word in user_question.lower() for word in ai_keywords) or has_gat_request or not is_search
     
     # СТРАТЕГИЯ 1: Если найден ID и он цифровой — ищем строго по нему (БЫСТРЫЙ ПУТЬ)
-    if student_info.get('id') and student_info['id'].isdigit():
+    if student_info.get('id') and student_info['id'].isdigit() and not force_ai:
         sql = f"""
         SELECT 
             s.id, s.first_name_ru, s.last_name_ru,
@@ -432,40 +432,49 @@ def ask_database(user, user_question, chat_history=None):
     # --- ШАГ 4: AI СТРАТЕГИЯ (ЕСЛИ СЛОЖНЫЙ ВОПРОС ИЛИ ЧАТ) ---
     if not sql:
         system_prompt = f"""
-Ты — "AI Andarz", дружелюбный аналитик GAT.
+Ты — "AI Andarz", умный аналитик данных GAT.
 
 === ЛИЧНОСТЬ ===
 1. Будь вежливым, используй смайлики (😊, 📊, 🚀).
-2. Если это просто общение ("Привет", "Как дела?") или вопрос "Как ты посчитал?" -> Отвечай текстом (is_sql_needed: false).
-3. Если это запрос данных -> Генерируй SQL.
+2. Если вопрос "Как дела?" -> Отвечай текстом (is_sql_needed: false).
+3. Если просят данные -> Генерируй SQL.
 
-=== БД ===
+=== СХЕМА БД (СТРОГО!) ===
 1. core_school (id, name, district)
 2. core_schoolclass (id, name, school_id)
-3. core_student (id, first_name_ru, last_name_ru, school_class_id)
-4. core_gattest (id, name, test_number)
+3. core_student (id, student_id, first_name_ru, last_name_ru, school_class_id) 
+   -- core_student.id = Внутренний ключ (ЧИСЛО).
+   -- core_student.student_id = Текстовый код ученика (СТРОКА, напр. '00123').
+4. core_gattest (id, name, test_number, test_date)
 5. core_studentresult (student_id, gat_test_id, total_score, scores_by_subject JSONB)
+   -- ВНИМАНИЕ: core_studentresult.student_id - это ВНЕШНИЙ КЛЮЧ на core_student.id (ЧИСЛО).
 
 === ИСТОРИЯ ЧАТА ===
 {history_text}
 
+=== ПРАВИЛА SQL (КРИТИЧНО ВАЖНО) ===
+1. JOIN таблиц: 
+   ВСЕГДА соединяй результаты и студентов так:
+   JOIN core_student s ON sr.student_id = s.id
+   (НИКОГДА не используй s.student_id в ON, это приведет к ошибке типов!)
+   
+2. Ищи ТОЛЬКО в школах с ID: ({allowed_ids_str}).
+3. Поиск по имени (ILIKE): 
+   (first_name_ru ILIKE '%Имя%' AND last_name_ru ILIKE '%Фамилия%') 
+   OR (first_name_ru ILIKE '%Фамилия%' AND last_name_ru ILIKE '%Имя%').
+4. Поиск по ID ученика:
+   WHERE (s.student_id = 'Текст_Запроса' OR s.id = Число_Запроса).
+5. Рейтинг: RANK() OVER (PARTITION BY gat_test_id ORDER BY total_score DESC).
+
 === ЗАДАНИЕ ===
 Вопрос: "{user_question}"
-- Ищи ТОЛЬКО в школах ({allowed_ids_str}).
-- JSON поле scores_by_subject содержит ключи-ID. Используй jsonb_each_text.
 
 === ФОРМАТ ОТВЕТА (JSON) ===
 {{
-    "sql": "SELECT ... или null",
+    "sql": "SELECT ...",
     "text_response": "Текст...",
-    "is_sql_needed": true/false
+    "is_sql_needed": true
 }}
-
-=== ВАЖНО ПО JSON ===
-В поле scores_by_subject значения - это true/false.
-Для подсчета баллов или среднего НЕЛЬЗЯ делать cast (::numeric).
-Используй конструкцию:
-CASE WHEN (value::text = 'true') THEN 1 ELSE 0 END
 """
         try:
             ai_content = _get_ai_response(system_prompt)
