@@ -14,13 +14,13 @@
 
     <link rel="icon" href="{% static 'img/favicon.ico' %}" type="image/x-icon">
 
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="{% static 'js/tailwind.js' %}"></script>
 
     <link href="{% static 'css/style.css' %}" rel="stylesheet">
 
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <script defer src="https://unpkg.com/htmx.org@1.9.10"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script defer src="{% static 'js/alpine.js' %}"></script>
+    <script defer src="{% static 'js/htmx.js' %}"></script>
+    <script src="{% static 'js/chart.js' %}"></script>
 
     <style>
         [x-cloak] { display: none !important; }

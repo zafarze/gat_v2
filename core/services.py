@@ -445,7 +445,11 @@ def process_student_results_upload(gat_test, excel_file_path, overrides_map=None
     
     if student_answers_to_create:
         # Теперь безопасно создаем новые, так как дубликатов студентов нет
-        StudentAnswer.objects.bulk_create(student_answers_to_create, batch_size=2000)
+        StudentAnswer.objects.bulk_create(
+    student_answers_to_create, 
+    batch_size=2000, 
+    ignore_conflicts=True  # <--- ВАЖНОЕ ДОБАВЛЕНИЕ
+)
 
     if default_storage.exists(excel_file_path):
         default_storage.delete(excel_file_path)

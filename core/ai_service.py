@@ -460,6 +460,12 @@ def ask_database(user, user_question, chat_history=None):
     "text_response": "Текст...",
     "is_sql_needed": true/false
 }}
+
+=== ВАЖНО ПО JSON ===
+В поле scores_by_subject значения - это true/false.
+Для подсчета баллов или среднего НЕЛЬЗЯ делать cast (::numeric).
+Используй конструкцию:
+CASE WHEN (value::text = 'true') THEN 1 ELSE 0 END
 """
         try:
             ai_content = _get_ai_response(system_prompt)

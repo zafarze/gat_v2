@@ -212,3 +212,13 @@ if not os.path.exists(LOGS_DIR):
     os.makedirs(LOGS_DIR)
     
 GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+
+# ВАЖНО: Добавьте это, чтобы работал вход через HTTPS
+CSRF_TRUSTED_ORIGINS = [
+    'https://andarzedu.pythonanywhere.com',
+    'http://andarzedu.pythonanywhere.com',
+]
+
+# На PythonAnywhere также полезно добавить эту настройку,
+# чтобы Django правильно понимал, что соединение защищено (HTTPS)
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
